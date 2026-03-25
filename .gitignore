@@ -30,3 +30,6 @@ Makefile.in
 .vscode
 .DS_Store
 .Tpo
+
+# Local datasets and generated outputs
+/data/

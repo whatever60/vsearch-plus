@@ -1,0 +1,28 @@
+- Keep things simple, intuitive, and straightforward. Project complexity should be keep to the minimum all the time.
+  - Do not define classes unless it drastically simplifies the logic or OOP is desperately needed for the current project or task.
+  - If a function/method is only used once, it should NOT have been defined AT ALL.
+- If code may fail, it should fail relentlessly:
+  - Avoid try except unless instructed or absolutely necessary/useful (such as you need a finally block for some cleanups).
+  - Don't check file existence before read. Instead, directly read. Believe that it will fail if the file does not exist.
+  - Don't use dictionary get unless instructed. Instead, directly use index.
+  - These "donts" go beyond these. For example, don't check if a column exists in a pandas data frame if you are accessing it anyways.
+- When defining functions/methods, always include docstring no matter how simple it is, including for functions defined inside of other functions.
+- I frequently use jupyter notebook for Python for R. You might or might not have the skill to make direct read or write to ipynb files. When that is the case:
+  - Create a `notebook_py` under the current directory.
+  - Convert notebooks to script files using `jupytext` (You must use `jupytext` for this. No other tools are allowed for conversion between notebooks and scripts).
+  - Edits can be made to those script files.
+  - You must confirm with me before overwriting my notebooks with `jupytext`, since my manual changes might be overwritten.
+  - Sometimes I might do manual editing to the notebooks.
+  - If you find inconsistency in terms of content or timestamps between paired notebooks and scripts, those scripts in `notebook_py` directory should be updated to reflect my manual edits to the notebooks (otherwise you will be looking at outdated scripts).
+- Code should be organized in a modular way.
+- Feel free to use third party libraries to avoid reinventing the wheels.
+- Prioritizing copy over de novo code: Before writing complex code from scratch, look through the current directory for existing code that does similar things, then copy it over.
+- Notebooks should contain markdown cells with hash titles for better organizing.
+- Notebooks doing heavy computation should be separated from notebooks doing data visualization.
+  - Use file name patterns like `xxx_compute.ipynb` and `xxx_plot.ipynb` to indicate a pair of notebooks where the compute notebook saved outputs that the plot notebook will read for data visualization.
+- Python package source libraries should be managed with `uv`.
+- No need to do `from __future__ import annotations`
+- Matplotlib:
+  - Use `plt.subplots` to create figures with multiplex panels.
+  - Avoid use other top module-level methods like`plt.savefig`. Instead, use axis level or figure level API.
+- No lazy imports, unless instructed. One example where lazy import is functionally necessary is `rpy2` (when used with Python multi-processing or jupyter notebooks).

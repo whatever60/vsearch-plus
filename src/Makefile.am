@@ -100,6 +100,7 @@ sortbylength.h \
 sortbysize.h \
 subsample.h \
 tax.h \
+tav_extension.h \
 udb.h \
 unique.h \
 userfields.h \
@@ -202,6 +203,7 @@ sortbylength.cc \
 sortbysize.cc \
 subsample.cc \
 tax.cc \
+tav_extension.cc \
 udb.cc \
 unique.cc \
 userfields.cc \
