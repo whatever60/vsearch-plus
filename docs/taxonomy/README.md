@@ -1,6 +1,6 @@
 # TAV Taxonomy Assignment (RDP)
 
-This directory documents and supports taxonomy assignment for paired-end TAV sequences.
+This module performs taxonomy assignment for TAV sequences as native paired-end objects.
 
 ## Quickstart
 
@@ -10,34 +10,33 @@ This directory documents and supports taxonomy assignment for paired-end TAV seq
 python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
 ```
 
-2. Run paired TAV taxonomy on real TAV outputs:
+2. Run native paired classification from split paired inputs:
 
 ```bash
 python3 rdp_tav_taxonomy.py \
-  --left-fasta data/real_out2/tav_left.fa \
-  --right-fasta data/real_out2/tav_right.fa \
-  --output-prefix data/real_out2/tav_taxonomy \
-  --pair-filter both \
-  --min-conf 0.8 \
+  --input data/real_out2/tav_left.fa \
+  --input2 data/real_out2/tav_right.fa \
+  --output data/real_out2/tav_taxonomy_native.tsv \
+  --format allrank \
+  --conf 0.8 \
+  --min-words 5 \
   --java-opt=-Xmx2g
 ```
 
-3. Optional catalog-driven mode:
+3. Optional interleaved mode:
 
 ```bash
 python3 rdp_tav_taxonomy.py \
-  --tav-catalog data/real_out2/tav_denoised.tsv \
-  --output-prefix data/real_out2/tav_taxonomy_catalog \
-  --pair-filter any \
-  --min-conf 0.8 \
-  --java-opt=-Xmx2g
+  --input interleaved_tav.fa \
+  --interleaved \
+  --output tav_taxonomy_native.tsv
 ```
 
-## Outputs
+## Output
 
-Given `--output-prefix PREFIX`, the command writes:
+The command writes one stock-compatible classification stream where each line is one TAV record.
 
-- `PREFIX.left.allrank.tsv`: raw RDP output for left anchors
-- `PREFIX.right.allrank.tsv`: raw RDP output for right anchors
-- `PREFIX.paired.tsv`: paired TAV-level taxonomy table after aggregation
-- `PREFIX.rank_counts.tsv`: abundance-weighted taxon counts by rank
+- `--output`: primary taxonomy output (`allrank`, `fixrank`, `filterbyconf`, or `db`)
+- `--shortseq-outfile`: optional IDs of short/unclassifiable paired records
+
+No per-anchor merge outputs are produced.

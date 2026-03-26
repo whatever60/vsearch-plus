@@ -1,82 +1,56 @@
-# RDP Inference Control Flow for TAV Taxonomy
+# RDP Inference Control Flow for Native TAV Classification
 
 ## Goal
 
-Document the stock RDP classifier inference flow and how `vsearch_plus` reuses it while adding paired-end TAV semantics.
+Document the stock RDP inference path and where paired-end TAV logic extends it.
 
-## Stock RDP Java Flow (Single-Sequence Backbone)
+## Stock RDP path (single-sequence)
 
-### 1. CLI entry dispatch
+1. `ClassifierMain.main()` dispatches to classify command path.
+2. `Main.main()` parses options and builds `MultiClassifier`.
+3. `ClassifierFactory` loads training resources / properties.
+4. `Classifier.classify(...)` computes:
+   - orientation handling
+   - k-mer word feature extraction
+   - genus posterior scoring
+   - bootstrap confidence over query words
+5. `ClassificationResultFormatter` renders output.
 
-- Entry jar: `data/third_party/rdp_classifier/extracted/.../dist/classifier.jar`
-- Main class: `edu/msu/cme/rdp/classifier/cli/ClassifierMain.java`
-- `ClassifierMain.main()` dispatches `classify` to `edu/msu/cme/rdp/multicompare/Main.main()`.
+## Native paired TAV extension path
 
-### 2. Classify command parse and setup
+Entrypoint: `python3 rdp_tav_taxonomy.py`
 
-- File: `edu/msu/cme/rdp/multicompare/Main.java`
-- `Main.main()` parses `-o`, `-f`, `-g` or `-t`, `-w`, and sample files.
-- It constructs `MultiClassifier` and calls `multiCompare(...)`.
+1. Python wrapper resolves RDP jar/model paths from manifest.
+2. Python wrapper compiles and invokes Java extension classes in `java/src/org/vsearchplus/rdp`.
+3. Java `PairedClassifierMain` reads paired records from:
+   - split inputs (`--input`, `--input2`) or
+   - interleaved input (`--interleaved`).
+4. Java `PairedNaiveBayesClassifier.classifyPair(...)` performs native paired NB:
+   - orientation normalization on each anchor using stock `TrainingInfo.isSeqReversed`
+   - word-probability row construction for R1 and R2 using stock model parameters
+   - full paired posterior scoring over combined rows
+   - bootstrap over combined R1+R2 word pool
+   - lineage confidence accumulation and stock result object creation
+5. Output is written via stock `ClassificationResultFormatter`.
 
-### 3. Model and training data load
+## Reuse versus new code
 
-- File: `edu/msu/cme/rdp/classifier/utils/ClassifierFactory.java`
-- `ClassifierFactory.getFactory(gene)` loads training resources from bundled `/data/classifier/...`.
-- `ClassifierFactory.setDataProp(prop, false)` switches to external pretrained model files via property file.
+Reused directly:
 
-### 4. Per-sequence inference loop
+- `ClassifierFactory`
+- `TrainingInfo` and trained probability structures
+- `ClassifierSequence`
+- `ClassificationResult` and `RankAssignment`
+- `ClassificationResultFormatter`
 
-- File: `edu/msu/cme/rdp/multicompare/MultiClassifier.java`
-- `multiCompare(...)` reads sequences from `MCSample.getNextSeq()` and runs:
-  - `classifier.classify(new ClassifierSequence(seq), min_bootstrap_words)`
-- File: `edu/msu/cme/rdp/classifier/Classifier.java`
-- `Classifier.classify(...)` performs:
-  - orientation check/reverse-complement when needed
-  - word-index feature extraction
-  - posterior scoring across taxa
-  - bootstrap confidence estimation (100 trials)
-  - rank assignment generation
+New extension code:
 
-### 5. Output formatting
+- `PairedNaiveBayesClassifier` (paired likelihood/bootstrap core)
+- `PairedClassifierMain` (paired IO and CLI bridge)
+- Python wrapper that builds/runs Java extension in-project
 
-- File: `edu/msu/cme/rdp/classifier/io/ClassificationResultFormatter.java`
-- `getOutput(..., allRank/fixRank/filterbyconf/db/biom)` emits tab-delimited assignments.
+## Output semantics
 
-## `vsearch_plus` TAV Extension Flow
-
-### 1. Python entrypoints
-
-- `rdp_tav_taxonomy.py` (root convenience wrapper)
-- `python/rdp_tav_taxonomy.py` (Python CLI wrapper)
-- `python/vsearch_plus/rdp_tav_taxonomy.py` (implementation)
-
-### 2. Input normalization to paired TAV records
-
-- `build_records_from_pair_fastas(...)`: reads `tav_left.fa` + `tav_right.fa`
-- `build_records_from_catalog(...)`: reads `tav_denoised.tsv` style catalogs
-- Each record is normalized to `(tav_id, abundance, left_seq_id, right_seq_id, left_seq, right_seq)`.
-
-### 3. Reuse stock classifier unchanged
-
-- `run_rdp(...)` executes stock jar command twice:
-  - once on left anchors
-  - once on right anchors
-- This intentionally reuses stock Java inference exactly for each end.
-- Pretrained models are reused via `-t .../rRNAClassifier.properties` discovered from `manifest.json`.
-
-### 4. Pair-aware aggregation layer
-
-- `parse_allrank_tsv(...)` parses per-end RDP allrank output.
-- `aggregate_rank(...)` and `aggregate_lineage(...)` combine R1/R2 rank assignments with:
-  - `--pair-filter both`: require confident agreement from both ends
-  - `--pair-filter any`: allow one confident end; resolve conflicts by higher confidence
-- Prefix-consistent truncation is enforced: once a rank is unresolved, deeper ranks are blank.
-
-### 5. Output products
-
-- `write_paired_table(...)` writes `PREFIX.paired.tsv` with side-by-side and paired fields.
-- `write_rank_counts(...)` writes `PREFIX.rank_counts.tsv` with abundance-weighted rank totals.
-
-## Bottom Line
-
-The expensive taxonomy classifier remains the stock RDP Java implementation. The extension is intentionally a thin paired-end orchestration + aggregation layer on top.
+- One TAV-level output stream (`--output`).
+- Optional short-sequence list (`--shortseq-outfile`).
+- No per-anchor output merge artifacts.

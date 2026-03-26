@@ -52,7 +52,7 @@ RDP helper commands:
 
 ```bash
 python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
-python3 rdp_tav_taxonomy.py --left-fasta data/real_out2/tav_left.fa --right-fasta data/real_out2/tav_right.fa --output-prefix data/real_out2/tav_taxonomy
+python3 rdp_tav_taxonomy.py --input data/real_out2/tav_left.fa --input2 data/real_out2/tav_right.fa --output data/real_out2/tav_taxonomy_native.tsv
 ```
 
 ## Getting Help
