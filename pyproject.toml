@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vsearch-plus-tools"
+version = "0.1.0"
+description = "Python orchestration utilities for vsearch_plus"
+readme = "python/README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+vsearch-plus-get-rdp = "vsearch_plus.rdp_download:main"
+vsearch-plus-rdp-tav = "vsearch_plus.rdp_tav_taxonomy:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/vsearch_plus"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "python/vsearch_plus",
+  "python/get_rdp_classifier.py",
+  "python/rdp_tav_taxonomy.py",
+  "python/README.md",
+  "README.md",
+  "LICENSE.txt",
+]

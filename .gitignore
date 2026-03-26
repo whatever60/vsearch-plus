@@ -29,6 +29,14 @@ Makefile.in
 .vscode
 .DS_Store
 .Tpo
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.venv/
+.ipynb_checkpoints/
+*.class
 
 # Local datasets and generated outputs
 /data/
