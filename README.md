@@ -37,6 +37,24 @@ VSEARCH can directly read input query and database files that are compressed usi
 
 Most of the nucleotide based commands and options in USEARCH version 7 are supported, as well as some in version 8. The same option names as in USEARCH version 7 has been used in order to make VSEARCH an almost drop-in replacement. VSEARCH does not support amino acid sequences or local alignments. These features may be added in the future.
 
+## vsearch_plus additions
+
+This repository also contains `vsearch_plus` extensions that add paired-end TAV workflows and taxonomy assignment around stock VSEARCH and stock RDP Classifier.
+
+Key folders:
+
+* `src/` - VSEARCH C/C++ core and paired-end extension code
+* `python/` - Python orchestration tools, including RDP download and TAV taxonomy assignment
+* `java/` - Java integration notes (RDP runtime is reused directly)
+* `docs/` - parity notes, roadmap logs, and taxonomy control-flow documentation
+
+RDP helper commands:
+
+```bash
+python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
+python3 rdp_tav_taxonomy.py --left-fasta data/real_out2/tav_left.fa --right-fasta data/real_out2/tav_right.fa --output-prefix data/real_out2/tav_taxonomy
+```
+
 ## Getting Help
 
 If you can't find an answer in [online documentation](https://torognes.github.io/vsearch/), or in the [manpage](https://github.com/torognes/vsearch/releases/download/v2.30.5/vsearch_manual.pdf), please visit the [VSEARCH Web Forum](https://groups.google.com/forum/#!forum/vsearch-forum) to post a question or start a discussion.
