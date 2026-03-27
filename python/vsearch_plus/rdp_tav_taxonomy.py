@@ -11,7 +11,8 @@ from pathlib import Path
 
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments for native paired-end TAV classification."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, add_help=False)
+    parser.add_argument("--help", action="help", help="Show this help message and exit.")
     parser.add_argument("--input", required=True, help="R1 input FASTA/FASTQ or interleaved input file.")
     parser.add_argument("--input2", help="R2 input FASTA/FASTQ file (required unless --interleaved).")
     parser.add_argument(
@@ -19,40 +20,99 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Interpret --input as one interleaved paired stream.",
     )
-    parser.add_argument("--output", required=True, help="Output taxonomy file (single TAV-level output).")
+    parser.add_argument(
+        "-o",
+        "--output",
+        "--outputFile",
+        dest="output",
+        required=True,
+        help="Output taxonomy file (single TAV-level output).",
+    )
     parser.add_argument(
         "--rdp-root",
         default="data/third_party/rdp_classifier",
         help="RDP root directory containing manifest.json.",
     )
     parser.add_argument("--rdp-jar", help="Override path to stock classifier.jar.")
-    parser.add_argument("--train-prop", help="Override path to pretrained rRNAClassifier.properties.")
     parser.add_argument(
+        "-t",
+        "--train-prop",
+        "--train_propfile",
+        dest="train_prop",
+        help="Override path to pretrained rRNAClassifier.properties.",
+    )
+    parser.add_argument(
+        "-g",
         "--gene",
         default="16srrna",
         help="Gene model when --train-prop is not set (default: 16srrna).",
     )
     parser.add_argument(
+        "-f",
         "--format",
         default="allrank",
-        choices=["allrank", "fixrank", "filterbyconf", "db"],
-        help="Stock-like output format.",
+        choices=["allrank", "fixrank", "filterbyconf", "db", "biom"],
+        help="Stock-like output format (biom is currently unsupported in paired TAV mode).",
     )
     parser.add_argument(
+        "-c",
         "--conf",
         type=float,
         default=0.8,
         help="Confidence cutoff for filterbyconf/db output semantics.",
     )
     parser.add_argument(
+        "-w",
         "--min-words",
+        "--minWords",
+        dest="min_words",
         type=int,
         default=5,
         help="Minimum bootstrap words (stock RDP semantics, minimum 5).",
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=1,
+        help="Bootstrap random seed for deterministic paired classification.",
+    )
+    parser.add_argument(
+        "-s",
         "--shortseq-outfile",
+        "--shortseq_outfile",
+        dest="shortseq_outfile",
         help="Optional output file for short/unclassifiable paired query IDs.",
+    )
+    parser.add_argument(
+        "-b",
+        "--bootstrap_outfile",
+        dest="bootstrap_outfile",
+        help="Stock classify bootstrap summary output file.",
+    )
+    parser.add_argument(
+        "-h",
+        "--hier_outfile",
+        dest="hier_outfile",
+        help="Stock classify hierarchical count output file.",
+    )
+    parser.add_argument(
+        "-d",
+        "--metadata",
+        dest="metadata",
+        help="Stock classify option; currently unsupported in paired TAV mode.",
+    )
+    parser.add_argument(
+        "-m",
+        "--biomFile",
+        dest="biom_file",
+        help="Stock classify option; currently unsupported in paired TAV mode.",
+    )
+    parser.add_argument(
+        "-q",
+        "--queryFile",
+        action="store_true",
+        dest="query_file",
+        help="Legacy stock classify flag; accepted and ignored.",
     )
     parser.add_argument(
         "--java-opt",
@@ -148,6 +208,8 @@ def build_java_command(
             str(args.conf),
             "--min-words",
             str(args.min_words),
+            "--seed",
+            str(args.seed),
         ]
     )
 
@@ -163,6 +225,12 @@ def build_java_command(
 
     if args.shortseq_outfile:
         cmd.extend(["--shortseq-outfile", args.shortseq_outfile])
+    if args.bootstrap_outfile:
+        cmd.extend(["--bootstrap_outfile", args.bootstrap_outfile])
+    if args.hier_outfile:
+        cmd.extend(["--hier_outfile", args.hier_outfile])
+    if args.query_file:
+        cmd.append("--queryFile")
 
     return cmd
 
@@ -170,6 +238,17 @@ def build_java_command(
 def main() -> None:
     """Compile and execute native paired-end TAV classification."""
     args = parse_args()
+
+    unsupported_options = []
+    if args.metadata:
+        unsupported_options.append("-d/--metadata")
+    if args.biom_file:
+        unsupported_options.append("-m/--biomFile")
+    if args.format == "biom":
+        unsupported_options.append("-f/--format biom")
+    if unsupported_options:
+        joined = ", ".join(unsupported_options)
+        raise RuntimeError(f"Unsupported stock classify options in paired TAV mode: {joined}")
 
     if args.interleaved and args.input2:
         raise RuntimeError("--input2 is not allowed when --interleaved is set")

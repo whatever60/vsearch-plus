@@ -6,48 +6,65 @@ This document describes the paired-end extension path for `vsearch --fastx_uniqu
 
 ### Scope
 
-Stock `fastx_uniques` dereplicates one sequence stream. The extension adds a paired-end mode when `--reverse` is provided, so each unique unit is a pair of anchors:
+Stock `fastx_uniques` dereplicates one sequence stream. The extension adds a paired-end mode when paired input is provided (second positional input for `R2`, or `--interleaved`), so each unique unit is a pair of anchors:
 
 - left anchor: from forward read (R1)
-- right anchor: from reverse read (R2), reverse-complemented before pairing
+- right anchor: from reverse read (R2), kept in native read orientation
 
 A pair is considered identical only when both anchors are exactly identical.
 
 ### CLI trigger
 
-Paired extension is selected by running `--fastx_uniques` with `--reverse`.
+Paired extension is selected by running `--fastx_uniques` with paired input:
+
+- split paired input: provide `R2` as the second positional input
+- interleaved paired input: set `--interleaved` and provide one input stream
 
 Example:
 
 ```bash
 ./bin/vsearch \
-  --fastx_uniques reads_R1.fastq.gz \
-  --reverse reads_R2.fastq.gz \
+  --fastx_uniques reads_R1.fastq.gz reads_R2.fastq.gz \
   --fastaout tav_left.fasta \
   --fastaout_rev tav_right.fasta \
   --tabbedout tav_catalog.tsv
 ```
 
-Without `--reverse`, command dispatch remains on stock derep behavior.
+Without paired input (no second positional input and no `--interleaved`), command dispatch remains on stock derep behavior.
 
 ### Input expectations
 
-- R1 and R2 are read in lockstep.
+- Split mode: R1 and R2 are read in lockstep from the two input streams.
+- Interleaved mode: input is consumed as `(R1,R2,R1,R2,...)`; odd record count is an error.
 - If one file has extra records, execution fails.
 - Anchor length is `min(len(R1), len(R2))`, additionally bounded by `--fastq_trunclen` when provided.
+
+Low-level relationship in current code:
+
+- `fastx_uniques` input call stack:
+  ```text
+  tav_fastx_uniques(...)
+    -> load_paired_records_from_fastx(..., apply_qmask=false)
+    -> anchor truncation + pair-key derep
+  ```
+- `cluster_unoise` / `uchime3_denovo` input call stack (same loader, different mode):
+  ```text
+  tav_cluster_unoise(...) or tav_uchime3_denovo(...)
+    -> load_paired_records_from_fastx(..., apply_qmask=true)
+  ```
 
 ### Deduplication rule
 
 For each synchronized pair:
 
 1. extract left anchor from R1
-2. reverse-complement R2, then extract right anchor
+2. extract right anchor from R2 in native orientation
 3. define key as `(left_anchor, right_anchor)`
 4. aggregate abundance into the same key only when both sides match exactly
 
-### Why R2 is reverse-complemented
+### Orientation policy
 
-R2 is reverse-complemented so both anchors are normalized to the same biological orientation before downstream distance/chimera/search logic. This keeps pairwise scoring simpler and consistent across pipeline stages.
+R2 is kept in native read orientation for external paired inputs/outputs. This removes implicit orientation flips across command boundaries. If a downstream algorithm needs orientation normalization, it must do that internally during computation.
 
 ### Outputs
 
@@ -64,7 +81,7 @@ Custom paired catalog with columns:
 Notes:
 
 - `tav_id` currently stores the representative header (stock-like label behavior), not an auto-generated `TAVxxxxxx` token.
-- `right_anchor` is already reverse-complemented sequence (normalized orientation).
+- `right_anchor` is written in native R2 orientation.
 
 #### Left FASTA (`--fastaout`)
 
@@ -72,7 +89,7 @@ Contains unique left anchors, one per paired unique, with abundance annotations 
 
 #### Right FASTA (`--fastaout_rev`)
 
-Contains unique right anchors, where sequence is reverse-complemented R2 anchor.
+Contains unique right anchors in native R2 orientation.
 
 Header labels for left and right FASTA are intentionally the same representative ID for each paired unit.
 
@@ -117,7 +134,7 @@ Abundance aggregation uses the same size-input concept as stock (`--sizein`-awar
 
 - The paired catalog (`--tabbedout`) is a custom paired schema, not stock derep tabbed format.
 - Paired mode writes two coordinated FASTA streams (`--fastaout` and `--fastaout_rev`) for left/right anchors.
-- In paired mode, right anchor sequences are reverse-complemented by design.
+- In paired mode, right anchor sequences keep native R2 orientation.
 
 ## 4) Practical guidance
 

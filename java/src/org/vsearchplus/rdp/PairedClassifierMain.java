@@ -1,20 +1,33 @@
 package org.vsearchplus.rdp;
 
 import edu.msu.cme.rdp.classifier.ClassificationResult;
+import edu.msu.cme.rdp.classifier.HierarchyTree;
+import edu.msu.cme.rdp.classifier.RankAssignment;
 import edu.msu.cme.rdp.classifier.ShortSequenceException;
 import edu.msu.cme.rdp.classifier.TrainingInfo;
 import edu.msu.cme.rdp.classifier.io.ClassificationResultFormatter;
 import edu.msu.cme.rdp.classifier.utils.ClassifierFactory;
 import edu.msu.cme.rdp.classifier.utils.ClassifierSequence;
+import edu.msu.cme.rdp.multicompare.MCSample;
+import edu.msu.cme.rdp.multicompare.MCSamplePrintUtil;
+import edu.msu.cme.rdp.multicompare.taxon.MCTaxon;
+import edu.msu.cme.rdp.multicompare.visitors.DefaultPrintVisitor;
 import edu.msu.cme.rdp.readseq.readers.SeqReader;
 import edu.msu.cme.rdp.readseq.readers.Sequence;
 import edu.msu.cme.rdp.readseq.readers.SequenceReader;
+import edu.msu.cme.rdp.taxatree.ConcretRoot;
+import edu.msu.cme.rdp.taxatree.Taxon;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 /**
  * CLI entrypoint for native paired-end TAV taxonomy assignment using stock RDP internals.
@@ -53,15 +66,36 @@ public final class PairedClassifierMain {
         final String gene = parsed.gene == null ? ClassifierFactory.RRNA_16S_GENE : parsed.gene;
         final ClassifierFactory factory = ClassifierFactory.getFactory(gene);
         final TrainingInfo trainingInfo = extractTrainingInfo(factory);
-        final PairedNaiveBayesClassifier pairedClassifier = new PairedNaiveBayesClassifier(trainingInfo);
+        final PairedNaiveBayesClassifier pairedClassifier =
+                new PairedNaiveBayesClassifier(trainingInfo, parsed.seed);
+        final boolean hasCopyNumber = factory.getRoot().hasCopyNumberInfo();
 
         final String[] ranks = useSpeciesRanks(gene)
                 ? ClassificationResultFormatter.RANKS_WITHSPECIES
                 : ClassificationResultFormatter.RANKS;
+        final boolean needsAggregateOutputs =
+                (parsed.bootstrapOutFile != null) || (parsed.hierOutFile != null);
+        final MCSample aggregateSample = needsAggregateOutputs ? new MCSample("paired_tav") : null;
+        final List<MCSample> aggregateSamples = new ArrayList<MCSample>();
+        if (aggregateSample != null) {
+            aggregateSamples.add(aggregateSample);
+        }
+        final ConcretRoot<MCTaxon> hierRoot = (parsed.hierOutFile != null)
+                ? new ConcretRoot<MCTaxon>(
+                        new MCTaxon(factory.getRoot().getTaxid(), factory.getRoot().getName(), factory.getRoot().getRank()))
+                : null;
+        final HashMap<String, Long> seqCountMap = new HashMap<String, Long>();
+        final HashMap<Taxon, Double> cachedCopyNumber = new HashMap<Taxon, Double>();
 
         try (PrintWriter outWriter = new PrintWriter(parsed.outputFile);
              PrintWriter shortSeqWriter = parsed.shortSeqFile == null ? null : new PrintWriter(parsed.shortSeqFile);
              PairReader pairReader = new PairReader(parsed.inputFile, parsed.inputFile2, parsed.interleaved)) {
+            if (ClassificationResultFormatter.FORMAT.filterbyconf.equals(parsed.outputFormat)) {
+                for (int i = 0; i < ranks.length; i++) {
+                    outWriter.print("\t" + ranks[i]);
+                }
+                outWriter.println();
+            }
             PairRecord pair;
             while ((pair = pairReader.nextPair()) != null) {
                 try {
@@ -73,11 +107,49 @@ public final class PairedClassifierMain {
                             rightSeq,
                             parsed.minWords);
                     outWriter.print(formatResult(result, parsed.outputFormat, parsed.confidence, ranks));
+                    if (aggregateSample != null) {
+                        aggregateSample.addRankCount(result);
+                    }
+                    if (hierRoot != null) {
+                        processClassificationResult(
+                                result,
+                                aggregateSample,
+                                hierRoot,
+                                parsed.confidence,
+                                seqCountMap,
+                                hasCopyNumber,
+                                cachedCopyNumber);
+                    }
                 } catch (ShortSequenceException e) {
                     if (shortSeqWriter != null) {
                         shortSeqWriter.println(pair.outputId);
                     }
                 }
+            }
+        }
+
+        if (parsed.hierOutFile != null) {
+            final File hierOutFile = new File(parsed.hierOutFile);
+            try (PrintStream hierOut = new PrintStream(hierOutFile)) {
+                final DefaultPrintVisitor printVisitor = new DefaultPrintVisitor(hierOut, aggregateSamples);
+                hierRoot.topDownVisit(printVisitor);
+            }
+
+            if (hasCopyNumber) {
+                final File parent = hierOutFile.getParentFile();
+                final File copyNumberAdjusted = (parent == null)
+                        ? new File("cnadjusted_" + hierOutFile.getName())
+                        : new File(parent, "cnadjusted_" + hierOutFile.getName());
+                try (PrintStream adjustedOut = new PrintStream(copyNumberAdjusted)) {
+                    final DefaultPrintVisitor adjustedVisitor = new DefaultPrintVisitor(adjustedOut, aggregateSamples, true);
+                    hierRoot.topDownVisit(adjustedVisitor);
+                }
+            }
+        }
+
+        if (parsed.bootstrapOutFile != null) {
+            try (PrintStream bootstrapOut = new PrintStream(parsed.bootstrapOutFile)) {
+                MCSamplePrintUtil.printBootstrapCountTable(bootstrapOut, aggregateSample);
             }
         }
     }
@@ -118,6 +190,7 @@ public final class PairedClassifierMain {
         final HashMap<String, String> valueOptions = new HashMap<String, String>();
         boolean interleaved = false;
         boolean help = false;
+        boolean queryFileFlag = false;
 
         int index = 0;
         while (index < args.length) {
@@ -127,28 +200,38 @@ public final class PairedClassifierMain {
                 index += 1;
                 continue;
             }
-            if ("--help".equals(token) || "-h".equals(token)) {
+            if ("--help".equals(token)) {
                 help = true;
                 index += 1;
                 continue;
             }
-            if (!token.startsWith("--")) {
+            if ("--queryFile".equals(token) || "-q".equals(token)) {
+                queryFileFlag = true;
+                index += 1;
+                continue;
+            }
+
+            final String normalized = normalizeOption(token);
+            if (normalized == null) {
                 throw new IllegalArgumentException("Unexpected argument: " + token);
             }
             if (index + 1 >= args.length) {
                 throw new IllegalArgumentException("Missing value for argument: " + token);
             }
-            valueOptions.put(token, args[index + 1]);
+            valueOptions.put(normalized, args[index + 1]);
             index += 2;
         }
 
         final Args parsed = new Args();
         parsed.help = help;
         parsed.interleaved = interleaved;
+        parsed.queryFile = queryFileFlag;
         parsed.inputFile = valueOptions.get("--input");
         parsed.inputFile2 = valueOptions.get("--input2");
         parsed.outputFile = valueOptions.get("--output");
         parsed.shortSeqFile = valueOptions.get("--shortseq-outfile");
+        parsed.bootstrapOutFile = valueOptions.get("--bootstrap_outfile");
+        parsed.hierOutFile = valueOptions.get("--hier_outfile");
         parsed.trainProp = valueOptions.get("--train-prop");
         parsed.gene = valueOptions.get("--gene");
         parsed.confidence = valueOptions.containsKey("--conf")
@@ -157,6 +240,9 @@ public final class PairedClassifierMain {
         parsed.minWords = valueOptions.containsKey("--min-words")
                 ? Integer.parseInt(valueOptions.get("--min-words"))
                 : 5;
+        parsed.seed = valueOptions.containsKey("--seed")
+                ? Long.parseLong(valueOptions.get("--seed"))
+                : 1L;
 
         final String formatText = valueOptions.containsKey("--format")
                 ? valueOptions.get("--format")
@@ -165,6 +251,12 @@ public final class PairedClassifierMain {
 
         if (ClassificationResultFormatter.FORMAT.biom.equals(parsed.outputFormat)) {
             throw new IllegalArgumentException("--format biom is not supported for paired TAV mode");
+        }
+        if (valueOptions.containsKey("--metadata")) {
+            throw new IllegalArgumentException("--metadata is not supported for paired TAV mode");
+        }
+        if (valueOptions.containsKey("--biomFile")) {
+            throw new IllegalArgumentException("--biomFile is not supported for paired TAV mode");
         }
 
         if (parsed.confidence < 0.0f || parsed.confidence > 1.0f) {
@@ -175,6 +267,173 @@ public final class PairedClassifierMain {
         }
 
         return parsed;
+    }
+
+    /**
+     * Normalize stock and extension option aliases to canonical keys.
+     */
+    private static String normalizeOption(final String token) {
+        if ("--input".equals(token)) {
+            return "--input";
+        }
+        if ("--input2".equals(token)) {
+            return "--input2";
+        }
+        if ("--output".equals(token) || "--outputFile".equals(token) || "-o".equals(token)) {
+            return "--output";
+        }
+        if ("--shortseq-outfile".equals(token) || "--shortseq_outfile".equals(token) || "-s".equals(token)) {
+            return "--shortseq-outfile";
+        }
+        if ("--train-prop".equals(token) || "--train_propfile".equals(token) || "-t".equals(token)) {
+            return "--train-prop";
+        }
+        if ("--gene".equals(token) || "-g".equals(token)) {
+            return "--gene";
+        }
+        if ("--conf".equals(token) || "-c".equals(token)) {
+            return "--conf";
+        }
+        if ("--format".equals(token) || "-f".equals(token)) {
+            return "--format";
+        }
+        if ("--min-words".equals(token) || "--minWords".equals(token) || "-w".equals(token)) {
+            return "--min-words";
+        }
+        if ("--seed".equals(token)) {
+            return "--seed";
+        }
+        if ("--bootstrap_outfile".equals(token) || "-b".equals(token)) {
+            return "--bootstrap_outfile";
+        }
+        if ("--hier_outfile".equals(token) || "-h".equals(token)) {
+            return "--hier_outfile";
+        }
+        if ("--metadata".equals(token) || "-d".equals(token)) {
+            return "--metadata";
+        }
+        if ("--biomFile".equals(token) || "-m".equals(token)) {
+            return "--biomFile";
+        }
+        return null;
+    }
+
+    /**
+     * Stock-style helper: find or create one taxon node under the aggregate output tree.
+     */
+    private static MCTaxon findOrCreateTaxon(
+            final ConcretRoot<MCTaxon> root,
+            final RankAssignment assignment,
+            final int parentId,
+            final boolean unclassified,
+            final Map<String, Long> seqCountMap,
+            final String lineage) {
+        int taxid = assignment.getTaxid();
+        if (unclassified) {
+            taxid = Taxon.getUnclassifiedId(taxid);
+        }
+
+        MCTaxon taxon = root.getChildTaxon(taxid);
+        if (taxon == null) {
+            taxon = new MCTaxon(assignment.getTaxid(), assignment.getName(), assignment.getRank(), unclassified);
+            root.addChild(taxon, parentId);
+
+            Long val = seqCountMap.get(taxon.getRank());
+            if (val == null) {
+                val = 0L;
+            }
+            seqCountMap.put(taxon.getRank(), val + 1L);
+            taxon.setLineage(lineage + taxon.getName() + ";" + taxon.getRank() + ";");
+        }
+
+        return taxon;
+    }
+
+    /**
+     * Stock-style helper: resolve cached copy number for lowest confident assignment taxon.
+     */
+    private static double findCopyNumber(
+            final RankAssignment assignment,
+            final Taxon taxon,
+            final Map<Taxon, Double> cache) {
+        Double copyNumber = cache.get(taxon);
+        if (copyNumber != null) {
+            return copyNumber;
+        }
+
+        HierarchyTree current = assignment.getBestClass();
+        while (current != null) {
+            if (current.getName().equalsIgnoreCase(taxon.getName())
+                    && current.getRank().equalsIgnoreCase(taxon.getRank())) {
+                copyNumber = current.getCopyNumber();
+                cache.put(taxon, copyNumber);
+                return copyNumber;
+            }
+            current = current.getParent();
+        }
+
+        return 1.0;
+    }
+
+    /**
+     * Stock-style helper: update aggregate hierarchy tree and counts for one classification result.
+     */
+    private static void processClassificationResult(
+            final ClassificationResult result,
+            final MCSample sample,
+            final ConcretRoot<MCTaxon> root,
+            final float confidence,
+            final Map<String, Long> seqCountMap,
+            final boolean hasCopyNumber,
+            final Map<Taxon, Double> cachedCopyNumber) {
+        RankAssignment lastAssignment = null;
+        RankAssignment twoAgo = null;
+        final StringBuilder lineage = new StringBuilder();
+        MCTaxon taxon = null;
+        MCTaxon countTaxon = null;
+        final HashSet<MCTaxon> touchedTaxa = new HashSet<MCTaxon>();
+        int parentId = root.getRootTaxid();
+        final int count = sample.getDupCount(result.getSequence().getSeqName());
+
+        for (RankAssignment assignment : result.getAssignments()) {
+            boolean stop = false;
+            if (assignment.getConfidence() < confidence) {
+                parentId = root.getRootTaxid();
+                if (twoAgo != null) {
+                    parentId = twoAgo.getTaxid();
+                }
+                countTaxon = taxon;
+                taxon = findOrCreateTaxon(root, lastAssignment, parentId, true, seqCountMap, lineage.toString());
+                stop = true;
+            } else {
+                if (lastAssignment != null) {
+                    parentId = lastAssignment.getTaxid();
+                }
+                taxon = findOrCreateTaxon(root, assignment, parentId, false, seqCountMap, lineage.toString());
+                countTaxon = taxon;
+            }
+
+            touchedTaxa.add(taxon);
+            twoAgo = lastAssignment;
+            lastAssignment = assignment;
+
+            if (stop) {
+                break;
+            }
+            lineage.append(assignment.getName()).append(";").append(assignment.getRank()).append(";");
+        }
+
+        if (hasCopyNumber && (countTaxon != null) && (!result.getAssignments().isEmpty())) {
+            final RankAssignment last = result.getAssignments().get(result.getAssignments().size() - 1);
+            final double copyNumber = findCopyNumber(last, countTaxon, cachedCopyNumber);
+            for (MCTaxon touched : touchedTaxa) {
+                touched.incCount(sample, count, copyNumber);
+            }
+        } else {
+            for (MCTaxon touched : touchedTaxa) {
+                touched.incCount(sample, count);
+            }
+        }
     }
 
     /**
@@ -207,13 +466,25 @@ public final class PairedClassifierMain {
         System.out.println("  --input <file>               Required. R1 file or interleaved file");
         System.out.println("  --input2 <file>              Required unless --interleaved is set");
         System.out.println("  --interleaved                Interpret --input as interleaved paired file");
-        System.out.println("  --output <file>              Required. TAV taxonomy output");
-        System.out.println("  --gene <name>                16srrna|fungallsu|fungalits_warcup|fungalits_unite");
-        System.out.println("  --train-prop <file>          Optional pretrained model properties override");
-        System.out.println("  --format <name>              allrank|fixrank|filterbyconf|db (default allrank)");
-        System.out.println("  --conf <float>               Confidence cutoff in [0,1] (default 0.8)");
-        System.out.println("  --min-words <int>            Bootstrap min words, at least 5 (default 5)");
-        System.out.println("  --shortseq-outfile <file>    Optional IDs of short/unclassifiable pairs");
+        System.out.println("  -o,--output,--outputFile <file>");
+        System.out.println("                                Required. TAV taxonomy output");
+        System.out.println("  -g,--gene <name>             16srrna|fungallsu|fungalits_warcup|fungalits_unite");
+        System.out.println("  -t,--train-prop,--train_propfile <file>");
+        System.out.println("                                Optional pretrained model properties override");
+        System.out.println("  -f,--format <name>           allrank|fixrank|filterbyconf|db (default allrank)");
+        System.out.println("  -c,--conf <float>            Confidence cutoff in [0,1] (default 0.8)");
+        System.out.println("  -w,--min-words,--minWords <int>");
+        System.out.println("                                Bootstrap min words, at least 5 (default 5)");
+        System.out.println("  --seed <int>                 Bootstrap random seed (default 1)");
+        System.out.println("  -s,--shortseq-outfile,--shortseq_outfile <file>");
+        System.out.println("                                Optional IDs of short/unclassifiable pairs");
+        System.out.println("  -q,--queryFile               Legacy stock flag, accepted and ignored");
+        System.out.println("  -b,--bootstrap_outfile <file>");
+        System.out.println("                                Optional bootstrap summary output");
+        System.out.println("  -h,--hier_outfile <file>");
+        System.out.println("                                Optional hierarchy count output");
+        System.out.println("  -d,--metadata                Parsed for parity, unsupported in paired TAV mode");
+        System.out.println("  -m,--biomFile                Parsed for parity, unsupported in paired TAV mode");
         System.out.println("  --help                       Show this message");
     }
 
@@ -227,11 +498,15 @@ public final class PairedClassifierMain {
         private String inputFile2;
         private String outputFile;
         private String shortSeqFile;
+        private String bootstrapOutFile;
+        private String hierOutFile;
         private String trainProp;
         private String gene;
         private float confidence;
         private int minWords;
+        private long seed;
         private ClassificationResultFormatter.FORMAT outputFormat;
+        private boolean queryFile;
     }
 
     /**

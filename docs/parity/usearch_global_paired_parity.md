@@ -4,14 +4,16 @@ This document captures parity status between stock `vsearch --usearch_global` an
 
 ## Scope and intent
 
-- Command: `vsearch --usearch_global` with paired input via `--reverse`.
+- Command: `vsearch --usearch_global` with paired input (second positional input for `R2`, or `--interleaved`).
 - Design target: preserve stock search backbone semantics, then extend only what is necessary to treat one read pair as one query unit.
 
 ## Current paired-mode contract
 
 ### Required paired inputs
 
-- Query input: `--usearch_global` (R1) + `--reverse` (R2).
+- Query input:
+  - split mode: `--usearch_global` (R1) + second positional input (R2)
+  - interleaved mode: `--usearch_global` with `--interleaved`
 - Database input:
   - one interleaved paired FASTA/FASTQ file via `--db` (left record then right record), or
   - split paired FASTA/FASTQ files via `--db` (left) + `--db2` (right).
@@ -23,12 +25,10 @@ This document captures parity status between stock `vsearch --usearch_global` an
 - `--userout`
 - `--uc`
 - `--blast6out`
-- `--matched`, `--notmatched`
-- `--matched` + `--matched2` (split paired outputs)
-- `--notmatched` + `--notmatched2` (split paired outputs)
-- `--dbmatched`, `--dbnotmatched`
-- `--dbmatched` + `--dbmatched2` (split paired outputs)
-- `--dbnotmatched` + `--dbnotmatched2` (split paired outputs)
+- `--matched` + `--match2` (split paired outputs; required together)
+- `--notmatched` + `--notmatched2` (split paired outputs; required together)
+- `--dbmatched` + `--dbmatched2` (split paired outputs; required together)
+- `--dbnotmatched` + `--dbnotmatched2` (split paired outputs; required together)
 - `--otutabout`, `--biomout`, `--mothur_shared_out`
 
 ### Not supported in paired mode (current)
@@ -46,11 +46,11 @@ This document captures parity status between stock `vsearch --usearch_global` an
 
 Stock implementation: `cmd_usearch_global()` routes non-paired runs to `usearch_global()`. It requires `--db`, requires `--id` in `[0,1]`, and accepts the full stock output set (including SAM/segment/alignment-rich outputs).
 
-Paired extension implementation: `cmd_usearch_global()` routes `--usearch_global` plus `--reverse` to `tav_usearch_global()`. It enforces:
+Paired extension implementation: `cmd_usearch_global()` routes paired input (`R2` positional input or `--interleaved`) to `tav_usearch_global()`. It enforces:
 - `--strand plus` only
 - no `--fastapairs`, `--qsegout`, `--tsegout`, `--samout`, `--lcaout`
 - no custom `--userfields`
-- split-output pairing constraints (`--matched2` requires `--matched`, etc.)
+- split-output pairing constraints (paired FASTA outputs require both `R1` and `R2` file arguments)
 - at least one paired-supported output
 - `--db` and valid `--id`
 
@@ -76,14 +76,14 @@ Extension mechanism: one paired target record replaces one single-sequence targe
 
 Stock implementation: each query sequence is read once (or twice with reverse strand search when enabled), optionally query-masked, then searched.
 
-Paired extension implementation: forward (`--usearch_global`) and reverse (`--reverse`) queries are read synchronously. For each pair:
-- right read is reverse-complemented
+Paired extension implementation: split queries (`R1`/`R2`) are read synchronously, or interleaved queries are consumed as `(R1,R2,R1,R2,...)`. For each pair:
+- right read is kept in native R2 orientation
 - both ends are truncated to `anchor_len`
 - query masking (`opt_qmask`) is applied on both ends
 - abundance is `max(fwd_abundance, 1)`
 - query unit becomes one paired `TavRecord`
 
-Extension mechanism: query right-end orientation is normalized before matching, and search operates on paired units.
+Extension mechanism: paired search operates directly on native-orientation left/right anchors.
 
 ### Step 4: K-mer candidate scoring and top-hit preselection
 
@@ -97,6 +97,22 @@ Paired extension implementation:
 
 Extension mechanism: stock k-mer backbone is preserved with additive left+right evidence.
 
+Low-level relationship in current code:
+
+- Stock Step 4 call stack:
+  ```text
+  search_onequery(...)
+    -> unique_count(...)
+    -> search_topscores(...)
+  ```
+- Paired Step 4 call stack:
+  ```text
+  search_onequery_paired(...)
+    -> unique_count(...) + paired postings accumulation
+  search_joinhits_paired(...)
+    -> minheap_add/sort/pop
+  ```
+
 ### Step 5: Unaligned filtering and delayed-alignment staging
 
 Stock implementation: candidate loop applies `search_acceptable_unaligned()`, pushes survivors into delayed alignment batches (`MAXDELAYED`), and stops by `maxaccepts/maxrejects` limits.
@@ -104,11 +120,28 @@ Stock implementation: candidate loop applies `search_acceptable_unaligned()`, pu
 Paired extension implementation: mirrors this control flow with:
 - `paired_unaligned_filters_pass()` (paired analog of stock unaligned filters:
   `maxqsize`, `mintsize`, `minsizeratio`, `maxsizeratio`, `minqt`, `maxqt`, `minsl`, `maxsl`, `idprefix`, `idsuffix`, `self`, `selfid`)
+  - `idprefix` is checked on R1 prefix only
+  - `idsuffix` is checked on R2 prefix only (merged-suffix analog under paired orientation contract)
 - pending batch processed at `MAXDELAYED` or loop end
 - effective limits:
   - `maxaccepts_effective`
   - `maxrejects_effective`
   - `maxhits_considered = maxaccepts + maxrejects - 1`
+
+Low-level relationship in current code:
+
+- Stock Step 5 call stack:
+  ```text
+  search_acceptable_unaligned(...)
+    -> search_unaligned_numeric_filters_pass(...)
+    -> single-end idprefix/idsuffix/self/selfid checks
+  ```
+- Paired Step 5 call stack:
+  ```text
+  paired_unaligned_filters_pass(...)
+    -> search_unaligned_numeric_filters_pass(...)
+    -> paired idprefix(R1 prefix)/idsuffix(R2 prefix)/self/selfid checks
+  ```
 
 Extension mechanism: delayed-batch semantics are kept, but filters evaluate paired totals/per-end equivalents.
 
@@ -119,7 +152,7 @@ Stock implementation: delayed hits are globally aligned (`search16` SIMD batch, 
 - weak if aligned-filters pass but `id < 100 * opt_id`
 - rejected otherwise
 
-Paired extension implementation: each pending hit is aligned per end with `align_one_end_stock_style()` (linear-memory aligner), then aggregated:
+Paired extension implementation: pending hits are aligned in per-end batches with `align_end_batch_stock_style()` (`search16` SIMD first, linear-memory fallback on overflow), then aggregated:
 - mismatches/gaps/columns/indels summed across ends
 - identity metrics `id0..id4` computed and selected by `opt_iddef`
 - `mid` and coverage metrics computed on combined totals
@@ -128,6 +161,24 @@ Paired extension implementation: each pending hit is aligned per end with `align
 - final accepted/weak/rejected decision uses the same `opt_id` cutoff semantics as stock
 
 Extension mechanism: accept/weak/reject logic is stock-equivalent after two-end stat aggregation.
+
+Low-level relationship in current code:
+
+- Stock Step 6 call stack:
+  ```text
+  search_acceptable_aligned(...)
+    -> search_aligned_compute_identity_metrics(...)
+    -> search_aligned_threshold_filters_pass(...)
+    -> stock accept/weak labeling
+  ```
+- Paired Step 6 call stack:
+  ```text
+  paired_aligned_filters_pass(...)
+    -> aggregate R1/R2 alignment totals
+    -> search_aligned_compute_identity_metrics(...)
+    -> search_aligned_threshold_filters_pass(...)
+    -> paired accept/weak labeling
+  ```
 
 ### Step 7: Hit retention, ordering, and report window
 
@@ -157,7 +208,7 @@ Paired extension implementation:
   - `--userout`: fixed schema (`query`, `target`, `id_left`, `id_right`, `id_total`, `d_left`, `d_right`, `d_total`)
   - `--blast6out`, `--uc`: stock-shaped paired adaptations
   - `--alnout`: paired summary plus separate R1/R2 alignments
-  - `--matched`/`--notmatched`: interleaved paired FASTA or split with `--matched2`/`--notmatched2`
+  - `--matched`/`--notmatched`: split paired FASTA only (`--matched` + `--match2`, `--notmatched` + `--notmatched2`)
 - if unmatched and table output enabled:
   - default: unassigned row behavior (`nullptr` target)
   - with `--unknown_name`: assign unmatched pairs to that explicit target name
@@ -172,7 +223,7 @@ Paired extension implementation:
 - adds all paired DB targets to OTU table with zero-count completion
 - optionally adds `--unknown_name` row
 - writes OTU/BIOM/mothur tables
-- writes paired DB outputs as interleaved or split FASTA:
+- writes paired DB outputs as split FASTA only:
   - matched targets use accumulated `dbmatched_abundance`
   - non-matched targets use original DB abundance
 
@@ -187,8 +238,7 @@ Extension mechanism: terminal aggregation semantics are stock-aligned with paire
 ## Example paired command
 
 ```bash
-vsearch --usearch_global query_r1.fa \
-  --reverse query_r2.fa \
+vsearch --usearch_global query_r1.fa query_r2.fa \
   --db tav_db_left.fa \
   --db2 tav_db_right.fa \
   --id 0.97 \

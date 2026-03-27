@@ -60,6 +60,7 @@
 
 #include "linmemalign.h"
 #include <array>
+#include <cstdint>
 #include <vector>
 
 
@@ -122,6 +123,43 @@ struct hit
   int longest;           /* length of longest of query and target */
 };
 
+struct search_unaligned_numeric_filters_s
+{
+  int64_t qsize = 0;
+  int64_t tsize = 0;
+  double qlen = 0.0;
+  double tlen = 0.0;
+};
+
+struct search_aligned_filter_input_s
+{
+  int mismatches = 0;
+  int nwgaps = 0;
+  int nwalignmentlength = 0;
+  int internal_alignmentlength = 0;
+  int internal_gaps = 0;
+  int internal_indels = 0;
+  int matches = 0;
+  int query_len = 0;
+  int target_len = 0;
+  int trim_left_total = 0;
+  int trim_right_total = 0;
+};
+
+struct search_aligned_identity_metrics_s
+{
+  int shortest = 0;
+  int longest = 0;
+  int ungapped_cols = 0;
+  double id0 = 0.0;
+  double id1 = 0.0;
+  double id2 = 0.0;
+  double id3 = 0.0;
+  double id4 = 0.0;
+  double id = 0.0;
+  double mid = 0.0;
+};
+
 /* type of kmer hit counter element remember possibility of overflow */
 using count_t = unsigned short;
 
@@ -169,6 +207,17 @@ auto search_acceptable_unaligned(struct searchinfo_s const & searchinfo,
 
 auto search_acceptable_aligned(struct searchinfo_s const & searchinfo,
                                struct hit * hit) -> bool;
+
+auto search_unaligned_numeric_filters_pass(
+    struct search_unaligned_numeric_filters_s const & filters) -> bool;
+
+auto search_aligned_compute_identity_metrics(
+    struct search_aligned_filter_input_s const & filter_input)
+    -> struct search_aligned_identity_metrics_s;
+
+auto search_aligned_threshold_filters_pass(
+    struct search_aligned_filter_input_s const & filter_input,
+    struct search_aligned_identity_metrics_s const & metrics) -> bool;
 
 auto align_trim(struct hit * hit) -> void;
 

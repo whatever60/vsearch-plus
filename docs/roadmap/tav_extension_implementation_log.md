@@ -1,5 +1,31 @@
 # TAV Extension Implementation Log
 
+## 2026-03-26 - CLI simplification pass (paired extensions)
+
+### Input CLI updates
+- For paired extension routes, `--reverse` is removed as the paired-input trigger.
+- Paired extension input is now:
+  - split mode: second positional input is `R2`
+  - interleaved mode: `--interleaved` with one FASTA/FASTQ stream (`R1,R2,...`)
+- This applies to:
+  - `--fastx_uniques`
+  - `--cluster_unoise`
+  - `--uchime3_denovo`
+  - `--usearch_global`
+
+### Paired output option updates
+- UCHIME3 paired FASTA options:
+  - `--chimeras2` (replaces `--chimeras_R2`)
+  - `--nonchimeras2` (replaces `--nonchimeras_R2`)
+- `usearch_global` paired split FASTA options:
+  - `--match2` (replaces `--matched_R2`)
+  - `--notmatched2` (replaces `--notmatched_R2`)
+  - `--dbmatched2` (replaces `--dbmatched_R2`)
+  - `--dbnotmatched2` (replaces `--dbnotmatched_R2`)
+
+### Output-mode constraint
+- Paired extension outputs remain split-only (`R1` file + `R2` file). Interleaved FASTX output is intentionally not produced.
+
 ## 2026-03-24 - Initial integration into VSEARCH source tree
 
 ### Scope implemented in this pass
@@ -30,8 +56,8 @@
 - Catalog TSV header:
   - `tav_id\tabundance\theader\tleft_anchor\tright_anchor`
 
-### Algorithmic notes (v1)
-- Pairing is ordered and R2 is reverse-complemented at ingestion.
+### Algorithmic notes (v1, historical)
+- Pairing is ordered and, in that initial pass, R2 was reverse-complemented at ingestion.
 - Anchor length uses `--fastq_trunclen` when specified (>0), otherwise full overlap of available R1/R2 lengths.
 - Pair distance is scalar sum of per-anchor mismatch/length differences.
 - UNOISE-like assignment rule uses:
@@ -41,10 +67,16 @@
 - Paired breakpoint/class selection now uses stock-like vote-derived `h` scoring (with score tie-break) per candidate parent pair.
 - Global assignment in paired mode uses per-end and total identity checks based on `--id`.
 
-### Known limitations in this pass
-- This pass is scalar and correctness-first; no SIMD/multithreading optimization.
-- Paired table/sample parsing is intentionally simple (`sample=` header tag if present, otherwise `sample_unknown`, or `--sample` override).
-- Paired UCHIME3 classification currently uses a simplified paired analog (selected two-parent model fully reconstructs query pair, while neither selected parent alone is perfect) rather than full stock UCHIME3 internal scoring.
+### Known limitations in this pass (historical)
+- The initial paired extension pass prioritized correctness and shipped without multithreading parity for paired `cluster_unoise`, `uchime3_denovo`, and `usearch_global`.
+- The initial paired OTU table/sample behavior used a temporary paired parsing path.
+- The initial paired UCHIME3 path used an earlier approximation before stock-style vote/model scoring was integrated.
+
+### Current status update (2026-03-27)
+- SIMD Needleman-Wunsch with linear-memory fallback is now used in paired `cluster_unoise`, `uchime3_denovo`, and `usearch_global` (low-level alignment parity achieved).
+- Paired `usearch_global` OTU-table/sample handling now reuses stock `otutable_*` parsing/output behavior.
+- Paired `uchime3_denovo` now follows stock-style parent preselection + vote/model scoring and uses the stock uchime3 chimera criterion (`match_QM == cols` and `QT < 100`).
+- Paired `cluster_unoise`, `uchime3_denovo`, and `usearch_global` now honor `--threads` by parallelizing candidate-alignment-heavy stages while preserving original decision/order semantics.
 
 ### Next steps queued
 - Build and fix compile/runtime issues.

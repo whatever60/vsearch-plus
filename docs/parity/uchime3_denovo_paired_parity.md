@@ -15,22 +15,22 @@ This document captures parity status between stock `vsearch --uchime3_denovo` an
 - Input: denoised FASTA file to `--uchime3_denovo`.
 - Outputs: single-end chimera/nonchimera/report outputs.
 
-### Paired mode: `uchime3_denovo` + `--reverse`
+### Paired mode: `uchime3_denovo` with paired input
 
 - Input: two synchronized sequence files:
   - `--uchime3_denovo` for left reads
-  - `--reverse` for right reads
+  - second positional input for right reads (`R2`)
+- Alternative input mode: `--interleaved` with one interleaved paired FASTA/FASTQ stream
 - Input preprocessing reuses paired loader behavior:
-  - min/max length filtering
-  - `--filter any|both` policy for pair drop decisions
+  - synchronized paired FASTX loading and record-count guards
   - qmask/hardmask preprocessing on both ends
 - Current paired outputs:
   - `--tabbedout`: paired-extension report (`parent_a`, `parent_b`, `breakpoint_class`, scores, delta)
   - `--uchimeout`: stock-shaped UCHIME tabular output adapted to paired scoring
   - `--uchimealns`: paired chimera alignment summaries (left/right context)
   - `--borderline`: accepted for CLI parity (typically empty with uchime3 logic)
-  - `--nonchimeras`: paired FASTA output (interleaved `/1` and `/2` records)
-  - `--chimeras`: paired FASTA output (interleaved `/1` and `/2` records)
+  - `--nonchimeras` + `--nonchimeras2`: paired FASTA outputs (split `R1` and `R2`)
+  - `--chimeras` + `--chimeras2`: paired FASTA outputs (split `R1` and `R2`)
   - `--nonchimeras_tsv`: paired TSV catalog rows for non-chimeras
   - `--chimeras_tsv`: paired TSV catalog rows for chimeras
 
@@ -38,7 +38,7 @@ This document captures parity status between stock `vsearch --uchime3_denovo` an
 
 - Catalog input note:
   - Stock `uchime3_denovo` does not accept TSV catalog input.
-  - Paired `uchime3_denovo` also only accepts FASTA/FASTQ pairs (`--uchime3_denovo` + `--reverse`).
+  - Paired `uchime3_denovo` also only accepts FASTA/FASTQ pairs (split positional `R1/R2` input or `--interleaved`).
   - `--chimeras_tsv` / `--nonchimeras_tsv` are paired output formats, not input formats.
 
 - `qmask` / `hardmask` note:
@@ -52,9 +52,9 @@ This document captures parity status between stock `vsearch --uchime3_denovo` an
 
 ### Step 1: Command dispatch and hard guards
 
-Stock implementation: `cmd_chimera()` routes plain `--uchime3_denovo` (without `--reverse`) to `chimera()`. Parameter guards enforce `abskew >= 1`, `xn > 1`, and `dn > 0`.
+Stock implementation: `cmd_chimera()` routes plain `--uchime3_denovo` (without paired input) to `chimera()`. Parameter guards enforce `abskew >= 1`, `xn > 1`, and `dn > 0`.
 
-Paired extension implementation: `cmd_chimera()` detects `--uchime3_denovo` plus `--reverse` and routes to `tav_uchime3_denovo()`. It enforces the same `abskew/xn/dn` guards and requires at least one output among `--chimeras`, `--nonchimeras`, `--chimeras_tsv`, `--nonchimeras_tsv`, `--tabbedout`, `--uchimeout`, `--uchimealns`, or `--borderline`.
+Paired extension implementation: `cmd_chimera()` detects paired input (`R2` as second positional input or `--interleaved`) and routes to `tav_uchime3_denovo()`. It enforces the same `abskew/xn/dn` guards, enforces split FASTA pairing (`--chimeras` with `--chimeras2`, `--nonchimeras` with `--nonchimeras2`), and requires at least one output among paired FASTA, TSV catalog, `--tabbedout`, `--uchimeout`, `--uchimealns`, or `--borderline`.
 
 Extension mechanism: paired mode is an explicit alternate execution path, not a flag inside the stock `chimera()` loop.
 
@@ -62,7 +62,7 @@ Extension mechanism: paired mode is an explicit alternate execution path, not a 
 
 Stock implementation: `chimera()` reads the denoised FASTA from `--uchime3_denovo`, optionally applies dust/hardmask (`opt_qmask` path), and then calls `db_sortbyabundance()`. Query processing order is abundance descending.
 
-Paired extension implementation: `tav_uchime3_denovo()` calls `load_paired_records_from_fastx()` on forward (`--uchime3_denovo`) and reverse (`--reverse`) streams. The loader enforces synchronized record counts, applies paired min/max length filters with `--filter any|both` semantics, applies the same qmask/hardmask operations to both ends, then sorts by:
+Paired extension implementation: `tav_uchime3_denovo()` calls `load_paired_records_from_fastx()` on paired FASTX input (split positional `R1/R2` or interleaved via `--interleaved`). The loader enforces synchronized record counts, applies the same qmask/hardmask operations to both ends. Records are then sorted by:
 1. abundance descending
 2. header ascending
 3. left sequence ascending
@@ -74,19 +74,21 @@ Extension mechanism: each processing unit is a `TavRecord` pair `(left,right,abu
 
 Stock implementation: in denovo mode, `dbindex_prepare()` initializes an initially empty parent index. `chimera()` sets `opt_self=1`, `opt_selfid=1`, and `opt_maxsizeratio = 1/abskew` so candidate parents must be sufficiently more abundant. After each query is classified as non-chimeric (`status < suspicious`), `dbindex_addsequence(seqno, opt_qmask)` inserts that sequence for future queries.
 
-Paired extension implementation: `tav_uchime3_denovo()` maintains:
-- `parent_pool_indices` (non-chimeric parent IDs in abundance order)
-- a paired k-mer posting backend (`left_postings`/`right_postings`) that is updated only when a query is classified non-chimeric.
-After each non-chimeric query, its sorted index `qi` is appended to the parent pool and indexed in the paired postings backend.
+Paired extension implementation: `tav_uchime3_denovo()` now reuses stock dbindex primitives directly:
+- `dbindex_prepare(0, opt_qmask)` initializes one stock k-mer index over the in-memory paired sequence store (left and right ends are stored as alternating sequence slots).
+- `parent_pool_indices` tracks non-chimeric parent record IDs in abundance order.
+- After each non-chimeric query, `dbindex_addsequence(left_seqno, opt_qmask)` and `dbindex_addsequence(right_seqno, opt_qmask)` are called to incrementally expose that pair as future parent material.
 
-Extension mechanism: both modes use a monotonic non-chimeric parent pool that grows during the abundance-ordered pass; paired mode now also uses an index-backed lookup stage (paired k-mer postings) instead of direct full-pool iteration.
+Extension mechanism: both modes use a monotonic non-chimeric parent pool and incremental `dbindex_addsequence` growth; paired mode keeps end-specific semantics by mapping left/right ends onto deterministic sequence-slot parity (even = R1, odd = R2).
 
 ### Step 4: Candidate enumeration for the current query
 
 Stock implementation: each query is split into `parts=4` (`partition_query()` for uchime/uchime2/uchime3). `search_onequery()` plus `search_joinhits()` collects accepted hits from each part, deduplicates targets, and builds `cand_list`. Full-query global alignments are then computed for every candidate (`search16`, with linear-memory fallback when SIMD overflows).
 
 Paired extension implementation:
-- Query kmers are looked up against the paired parent postings backend.
+- `search_onequery()` / `search_joinhits()` are not called directly in paired uchime mode.
+- Query kmers are looked up through stock dbindex match lists (`dbindex_getmatchlist`/`dbindex_getmatchcount`/`dbindex_getmapping`).
+- R1 k-mers only contribute from even mapped sequence slots (left-end parents), and R2 k-mers only contribute from odd mapped sequence slots (right-end parents), then both contributions are summed to a pair-level parent score.
 - Candidate parents are scored by summed left/right k-mer overlap.
 - The abundance gate (`p.abundance >= abskew * q.abundance`) is enforced.
 - Top candidates are retained with stock-like bounded heap behavior (`maxaccepts + maxrejects` style cap).
@@ -122,12 +124,31 @@ Stock implementation detail (`find_matches()` + `find_best_parents()`):
 - Recompute smoothing/wins on the masked matrix and pick parent 2.
 
 Paired extension implementation detail:
-- Use concatenated query axis: `[left query positions][right query positions]`.
+- Use concatenated query axis:
+  `[left query positions in forward order][right query positions in forward order]`.
 - Build candidate match vectors from full-query alignment CIGARs (paired analog of stock `find_matches()`).
-- Run the same 32 bp smoothing + per-position winner counting + winner-window wipeout to choose parent 1 then parent 2 (paired analog of stock `find_best_parents()`).
+- Run the same 32 bp smoothing + per-position winner counting + winner-window wipeout to choose parent 1 then parent 2.
+- Parent 1/2 winner selection now calls the same low-level helper (`select_best_two_parents_from_match_matrix`) from both stock `find_best_parents()` and paired Step 6.
 - No fallback all-pairs sweep is performed when no two parents are found; behavior is stock-like no-parent handling.
 
-Extension mechanism: paired parent preselection now uses alignment-derived match vectors and stock-like 32 bp winner logic rather than direct character-equality heuristics or all-pairs fallback.
+Low-level relationship in current code:
+
+- Stock Step 6 call stack:
+  ```text
+  find_matches(...)
+    -> find_best_parents(...)
+    -> select_best_two_parents_from_match_matrix(...)
+  ```
+- Paired Step 6 call stack:
+  ```text
+  compute_match_vector(...)
+    -> parse_cigar_operations_from_string(...)
+    -> parse_cigar_string(...)
+    -> select_best_parent_pair(...)
+    -> select_best_two_parents_from_match_matrix(...)
+  ```
+
+Extension mechanism: paired parent preselection now uses alignment-derived match vectors and shared stock winner-window selection logic rather than direct character-equality heuristics or all-pairs fallback.
 
 ### Step 7: Diff coding and `h` optimization for two-parent models
 
@@ -146,11 +167,22 @@ Paired extension implementation:
 - For each selected parent pair, both ends are globally aligned and converted into unified gapped strings (`Q`, `A`, `B`) using stock-like insertion normalization.
 - Ambiguous and gap-adjacent columns are marked ignored exactly in stock style.
 - `diffs` are emitted with stock symbols (`A/B/N/?/space`), with reverse-orientation swap handling (`A<->B`) when anti-chimera orientation is stronger.
-- `h` optimization scans one continuous concatenated paired axis exactly like stock's single-breakpoint pass, yielding one `best_i`.
+- `h` optimization scans one concatenated paired axis with right-end scan direction reversed (left: start->end, right: end->start), yielding one `best_i`.
 - Paired breakpoint class is then derived from `best_i` location:
   - in left end -> `LEFT_BREAK`
   - at end boundary -> `MIDDLE_BREAK`
   - in right end -> `RIGHT_BREAK`
+
+Low-level relationship in current code:
+
+- Paired Step 7 call stack:
+  ```text
+  evaluate_parent_pair(...)
+    -> build_end_alignments(...)
+    -> parse_cigar_operations_from_string(...)
+    -> parse_cigar_string(...)
+    -> stock-style diff/vote/model scoring
+  ```
 
 Extension mechanism: the paired path now uses stock-style diff coding and one-pass breakpoint scan; paired class labels are metadata derived from the chosen breakpoint position.
 
@@ -201,7 +233,7 @@ Paired extension comparison against stock:
 - Same option name, paired-adapted body format:
   - `--uchimealns` now includes paired alignment blocks with stock-style `Diffs/Votes/Model` lines split by side (`*_LEFT`, `*_RIGHT`), while keeping paired context labels.
 - Same option name, different FASTA layout:
-  - `--chimeras` and `--nonchimeras` are interleaved paired FASTA (`/1` then `/2`), two records per query pair.
+  - `--chimeras`/`--chimeras2` and `--nonchimeras`/`--nonchimeras2` are split paired FASTA outputs (`R1` file and `R2` file).
 - Same option name, effectively empty in paired uchime3:
   - `--borderline` accepted for CLI parity but not populated by current paired decision path.
 - Extra paired-only outputs not present in stock:
@@ -214,10 +246,10 @@ Extension mechanism: paired outputs carry more metrics than stock because the pa
 
 ## Operational constraints in paired mode
 
-- Paired extension is entered when `--uchime3_denovo` is combined with `--reverse`.
+- Paired extension is entered when paired input is provided (`R2` as second positional input or `--interleaved`).
 - At least one output must be specified among:
-  - `--nonchimeras`
-  - `--chimeras`
+  - `--nonchimeras` + `--nonchimeras2`
+  - `--chimeras` + `--chimeras2`
   - `--tabbedout`
   - `--uchimeout`
   - `--uchimealns`
@@ -227,7 +259,7 @@ Extension mechanism: paired outputs carry more metrics than stock because the pa
 
 ## Parity status summary
 
-- Current status: paired `uchime3_denovo` follows stock-style paired ingestion routing (FASTX + `--reverse`) and removes catalog-mode input.
+- Current status: paired `uchime3_denovo` follows paired FASTX ingestion routing (split positional input or `--interleaved`) and removes catalog-mode input.
 - Current status: paired mode now mirrors key stock denovo behavior for parent-pool growth (nonchimera-only), index-backed candidate discovery, 32bp winner-vote parent preselection, and stock-style one-pass `h` breakpoint optimization.
 - Current algorithm status: paired chimera core now follows stock diff/vote/model mechanics on a concatenated paired axis; paired breakpoint classes are retained as derived annotations.
 - Main open parity work items:
@@ -239,13 +271,14 @@ Extension mechanism: paired outputs carry more metrics than stock because the pa
 
 ```bash
 ./bin/vsearch \
-  --uchime3_denovo denoised_r1.fasta \
-  --reverse denoised_r2.fasta \
+  --uchime3_denovo denoised_r1.fasta denoised_r2.fasta \
   --tabbedout chim_report.tsv \
   --uchimeout chim_uchime.tsv \
   --uchimealns chim_alns.txt \
   --nonchimeras_tsv nonchim_pairs.tsv \
   --chimeras_tsv chim_pairs.tsv \
   --nonchimeras nonchim_pairs.fa \
-  --chimeras chim_pairs.fa
+  --nonchimeras2 nonchim_pairs_r2.fa \
+  --chimeras chim_pairs.fa \
+  --chimeras2 chim_pairs_r2.fa
 ```

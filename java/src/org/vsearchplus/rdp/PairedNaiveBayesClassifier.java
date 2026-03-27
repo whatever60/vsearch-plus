@@ -27,6 +27,7 @@ public final class PairedNaiveBayesClassifier {
     private static final int MAX_NUM_OF_WORDS = 5000;
 
     private final TrainingInfo trainingInfo;
+    private final long bootstrapSeed;
     private final Random randomGenerator;
     private final Random randomSelectGenera;
 
@@ -36,13 +37,14 @@ public final class PairedNaiveBayesClassifier {
     /**
      * Create a paired classifier from an already-loaded stock training info object.
      */
-    public PairedNaiveBayesClassifier(final TrainingInfo trainingInfo) {
+    public PairedNaiveBayesClassifier(final TrainingInfo trainingInfo, final long bootstrapSeed) {
         this.trainingInfo = trainingInfo;
+        this.bootstrapSeed = bootstrapSeed;
         final int nodeListSize = trainingInfo.getGenusNodeListSize();
         this.querySeqWordProbArr = new float[MAX_NUM_OF_WORDS][nodeListSize];
         this.accumulateProbArr = new float[nodeListSize];
-        this.randomGenerator = new Random(1L);
-        this.randomSelectGenera = new Random();
+        this.randomGenerator = new Random(bootstrapSeed);
+        this.randomSelectGenera = new Random(bootstrapSeed);
     }
 
     /**
@@ -53,8 +55,15 @@ public final class PairedNaiveBayesClassifier {
             final ClassifierSequence leftInput,
             final ClassifierSequence rightInput,
             final int minBootstrapWords) throws IOException {
-        final ClassifierSequence left = orientIfNeeded(leftInput);
-        final ClassifierSequence right = orientIfNeeded(rightInput);
+        final boolean leftWasReversed = trainingInfo.isSeqReversed(
+                leftInput.getWordIndexArr(),
+                leftInput.getGoodWordCount());
+        final ClassifierSequence left = leftWasReversed ? leftInput.getReversedSeq() : leftInput;
+
+        final boolean rightWasReversed = trainingInfo.isSeqReversed(
+                rightInput.getWordIndexArr(),
+                rightInput.getGoodWordCount());
+        final ClassifierSequence right = rightWasReversed ? rightInput.getReversedSeq() : rightInput;
 
         final int[] leftWordIndexArr = left.getWordIndexArr();
         final int[] rightWordIndexArr = right.getWordIndexArr();
@@ -91,25 +100,19 @@ public final class PairedNaiveBayesClassifier {
                 totalGoodWordCount / GoodWordIterator.getWordsize(),
                 minBootstrapWords);
 
-        randomGenerator.setSeed(1L);
+        randomGenerator.setSeed(bootstrapSeed);
+        randomSelectGenera.setSeed(bootstrapSeed);
         runBootstrap(totalGoodWordCount, numSelections, confidenceCountMap);
 
         final List<RankAssignment> finalAssignments =
                 finalizeAssignments(determinedNodeIndex, confidenceCountMap);
 
         final Sequence querySequence = new Sequence(tavSequenceId, "", left.getSeqString());
-        return new ClassificationResult(querySequence, false, finalAssignments, trainingInfo.getHierarchyInfo());
-    }
-
-    /**
-     * Normalize one anchor orientation using stock RDP orientation logic.
-     */
-    private ClassifierSequence orientIfNeeded(final ClassifierSequence seq) throws IOException {
-        final int[] wordIndexArr = seq.getWordIndexArr();
-        if (trainingInfo.isSeqReversed(wordIndexArr, seq.getGoodWordCount())) {
-            return seq.getReversedSeq();
-        }
-        return seq;
+        return new ClassificationResult(
+                querySequence,
+                leftWasReversed,
+                finalAssignments,
+                trainingInfo.getHierarchyInfo());
     }
 
     /**

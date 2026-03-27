@@ -48,6 +48,14 @@ Key folders:
 * `java/` - Java integration notes (RDP runtime is reused directly)
 * `docs/` - parity notes, roadmap logs, and taxonomy control-flow documentation
 
+Paired-end parity docs:
+
+* `docs/README.md` - canonical docs index and merge order for compiled docs
+* `docs/parity/fastq_filter_paired_parity.md` - fastq_filter stock vs extension mode semantics and pair-level EE/EE-rate rules
+* `docs/parity/paired_orientation_unification.md` - unified R1/R2 orientation policy and internal RC points
+
+Low-level stock-vs-extension function relationships are documented inline at the relevant steps in `docs/parity/*.md`.
+
 RDP helper commands:
 
 ```bash

@@ -421,39 +421,186 @@ auto align_trim(struct hit * hit) -> void
     - ((hit->trim_q_left  + hit->trim_t_left)  > 0 ? 1 : 0)
     - ((hit->trim_q_right + hit->trim_t_right) > 0 ? 1 : 0);
 
-  /* CD-HIT */
-  hit->id0 = hit->shortest > 0 ? 100.0 * hit->matches / hit->shortest : 0.0;
-  /* all diffs */
-  hit->id1 = hit->nwalignmentlength > 0 ?
-    100.0 * hit->matches / hit->nwalignmentlength : 0.0;
-  /* internal diffs */
-  hit->id2 = hit->internal_alignmentlength > 0 ?
-    100.0 * hit->matches / hit->internal_alignmentlength : 0.0;
-  /* Marine Biology Lab */
-  hit->id3 = std::max(0.0, 100.0 * (1.0 - (1.0 * (hit->mismatches + hit->nwgaps) /
-                                      hit->longest)));
-  /* BLAST */
-  hit->id4 = hit->nwalignmentlength > 0 ?
-    100.0 * hit->matches / hit->nwalignmentlength : 0.0;
+  struct search_aligned_filter_input_s filter_input {};
+  filter_input.mismatches = hit->mismatches;
+  filter_input.nwgaps = hit->nwgaps;
+  filter_input.nwalignmentlength = hit->nwalignmentlength;
+  filter_input.internal_alignmentlength = hit->internal_alignmentlength;
+  filter_input.internal_gaps = hit->internal_gaps;
+  filter_input.internal_indels = hit->internal_indels;
+  filter_input.matches = hit->matches;
+  filter_input.query_len = hit->shortest;
+  filter_input.target_len = hit->longest;
+
+  auto const metrics = search_aligned_compute_identity_metrics(filter_input);
+  hit->id0 = metrics.id0;
+  hit->id1 = metrics.id1;
+  hit->id2 = metrics.id2;
+  hit->id3 = metrics.id3;
+  hit->id4 = metrics.id4;
+  hit->id = metrics.id;
+}
+
+
+auto search_unaligned_numeric_filters_pass(
+    struct search_unaligned_numeric_filters_s const & filters) -> bool
+{
+  if (filters.qsize > opt_maxqsize)
+    {
+      return false;
+    }
+  if (filters.tsize < opt_mintsize)
+    {
+      return false;
+    }
+  if (static_cast<double>(filters.qsize) <
+      (opt_minsizeratio * static_cast<double>(filters.tsize)))
+    {
+      return false;
+    }
+  if (static_cast<double>(filters.qsize) >
+      (opt_maxsizeratio * static_cast<double>(filters.tsize)))
+    {
+      return false;
+    }
+  if (filters.qlen < (opt_minqt * filters.tlen))
+    {
+      return false;
+    }
+  if (filters.qlen > (opt_maxqt * filters.tlen))
+    {
+      return false;
+    }
+
+  auto const shorter = std::min(filters.qlen, filters.tlen);
+  auto const longer = std::max(filters.qlen, filters.tlen);
+  if (shorter < (opt_minsl * longer))
+    {
+      return false;
+    }
+  if (shorter > (opt_maxsl * longer))
+    {
+      return false;
+    }
+
+  return true;
+}
+
+
+auto search_aligned_compute_identity_metrics(
+    struct search_aligned_filter_input_s const & filter_input)
+    -> struct search_aligned_identity_metrics_s
+{
+  struct search_aligned_identity_metrics_s metrics {};
+
+  metrics.shortest = std::min(filter_input.query_len, filter_input.target_len);
+  metrics.longest = std::max(filter_input.query_len, filter_input.target_len);
+  metrics.ungapped_cols = filter_input.matches + filter_input.mismatches;
+
+  metrics.id0 = metrics.shortest > 0
+    ? (100.0 * static_cast<double>(filter_input.matches) /
+       static_cast<double>(metrics.shortest))
+    : 0.0;
+  metrics.id1 = filter_input.nwalignmentlength > 0
+    ? (100.0 * static_cast<double>(filter_input.matches) /
+       static_cast<double>(filter_input.nwalignmentlength))
+    : 0.0;
+  metrics.id2 = filter_input.internal_alignmentlength > 0
+    ? (100.0 * static_cast<double>(filter_input.matches) /
+       static_cast<double>(filter_input.internal_alignmentlength))
+    : 0.0;
+  metrics.id3 = metrics.longest > 0
+    ? std::max(0.0,
+               100.0 * (1.0 - (static_cast<double>(filter_input.mismatches +
+                                                   filter_input.nwgaps) /
+                               static_cast<double>(metrics.longest))))
+    : 0.0;
+  metrics.id4 = metrics.id1;
 
   switch (opt_iddef)
     {
     case 0:
-      hit->id = hit->id0;
+      metrics.id = metrics.id0;
       break;
     case 1:
-      hit->id = hit->id1;
+      metrics.id = metrics.id1;
       break;
     case 2:
-      hit->id = hit->id2;
+      metrics.id = metrics.id2;
       break;
     case 3:
-      hit->id = hit->id3;
+      metrics.id = metrics.id3;
       break;
     case 4:
-      hit->id = hit->id4;
+      metrics.id = metrics.id4;
+      break;
+    default:
+      metrics.id = metrics.id2;
       break;
     }
+
+  if (metrics.ungapped_cols > 0)
+    {
+      metrics.mid = 100.0 * static_cast<double>(filter_input.matches) /
+                    static_cast<double>(metrics.ungapped_cols);
+    }
+
+  return metrics;
+}
+
+
+auto search_aligned_threshold_filters_pass(
+    struct search_aligned_filter_input_s const & filter_input,
+    struct search_aligned_identity_metrics_s const & metrics) -> bool
+{
+  if (metrics.id < (100.0 * opt_weak_id))
+    {
+      return false;
+    }
+  if (filter_input.mismatches > opt_maxsubs)
+    {
+      return false;
+    }
+  if (filter_input.internal_gaps > opt_maxgaps)
+    {
+      return false;
+    }
+  if (filter_input.internal_alignmentlength < opt_mincols)
+    {
+      return false;
+    }
+  if ((opt_leftjust != 0) and (filter_input.trim_left_total > 0))
+    {
+      return false;
+    }
+  if ((opt_rightjust != 0) and (filter_input.trim_right_total > 0))
+    {
+      return false;
+    }
+  if (static_cast<double>(metrics.ungapped_cols) <
+      (opt_query_cov * static_cast<double>(filter_input.query_len)))
+    {
+      return false;
+    }
+  if (static_cast<double>(metrics.ungapped_cols) <
+      (opt_target_cov * static_cast<double>(filter_input.target_len)))
+    {
+      return false;
+    }
+  if (metrics.id > (100.0 * opt_maxid))
+    {
+      return false;
+    }
+  if ((metrics.ungapped_cols == 0) or (metrics.mid < opt_mid))
+    {
+      return false;
+    }
+  if ((filter_input.mismatches + filter_input.internal_indels) > opt_maxdiffs)
+    {
+      return false;
+    }
+
+  return true;
 }
 
 
@@ -471,35 +618,18 @@ auto search_acceptable_unaligned(struct searchinfo_s const & searchinfo,
   int64_t const dseqlen = db_getsequencelen(target);
   int64_t const tsize = db_getabundance(target);
 
+  struct search_unaligned_numeric_filters_s numeric_filters {};
+  numeric_filters.qsize = searchinfo.qsize;
+  numeric_filters.tsize = tsize;
+  numeric_filters.qlen = searchinfo.qseqlen;
+  numeric_filters.tlen = static_cast<double>(dseqlen);
+
+  if (not search_unaligned_numeric_filters_pass(numeric_filters))
+    {
+      return false;
+    }
+
   return (
-          /* maxqsize */
-          (searchinfo.qsize <= opt_maxqsize)
-          and
-          /* mintsize */
-          (tsize >= opt_mintsize)
-          and
-          /* minsizeratio */
-          (searchinfo.qsize >= opt_minsizeratio * tsize)
-          and
-          /* maxsizeratio */
-          (searchinfo.qsize <= opt_maxsizeratio * tsize)
-          and
-          /* minqt */
-          (searchinfo.qseqlen >= opt_minqt * dseqlen)
-          and
-          /* maxqt */
-          (searchinfo.qseqlen <= opt_maxqt * dseqlen)
-          and
-          /* minsl */
-          (searchinfo.qseqlen < dseqlen ?
-           searchinfo.qseqlen >= opt_minsl * dseqlen :
-           dseqlen >= opt_minsl * searchinfo.qseqlen)
-          and
-          /* maxsl */
-          (searchinfo.qseqlen < dseqlen ?
-           searchinfo.qseqlen <= opt_maxsl * dseqlen :
-           dseqlen <= opt_maxsl * searchinfo.qseqlen)
-          and
           /* idprefix */
           ((searchinfo.qseqlen >= opt_idprefix) and
            (dseqlen >= opt_idprefix) and
@@ -526,52 +656,44 @@ auto search_acceptable_unaligned(struct searchinfo_s const & searchinfo,
 auto search_acceptable_aligned(struct searchinfo_s const & searchinfo,
                                struct hit * hit) -> bool
 {
-  if (/* weak_id */
-      (hit->id >= 100.0 * opt_weak_id) and
-      /* maxsubs */
-      (hit->mismatches <= opt_maxsubs) and
-      /* maxgaps */
-      (hit->internal_gaps <= opt_maxgaps) and
-      /* mincols */
-      (hit->internal_alignmentlength >= opt_mincols) and
-      /* leftjust */
-      ((opt_leftjust == 0) or (hit->trim_q_left +
-                           hit->trim_t_left == 0)) and
-      /* rightjust */
-      ((opt_rightjust == 0) or (hit->trim_q_right +
-                            hit->trim_t_right == 0)) and
-      /* query_cov */
-      (hit->matches + hit->mismatches >= opt_query_cov * searchinfo.qseqlen) and
-      /* target_cov */
-      (hit->matches + hit->mismatches >=
-       opt_target_cov * db_getsequencelen(hit->target)) and
-      /* maxid */
-      (hit->id <= 100.0 * opt_maxid) and
-      /* mid */
-      (100.0 * hit->matches / (hit->matches + hit->mismatches) >= opt_mid) and
-      /* maxdiffs */
-      (hit->mismatches + hit->internal_indels <= opt_maxdiffs))
+  struct search_aligned_filter_input_s filter_input {};
+  filter_input.mismatches = hit->mismatches;
+  filter_input.nwgaps = hit->nwgaps;
+  filter_input.nwalignmentlength = hit->nwalignmentlength;
+  filter_input.internal_alignmentlength = hit->internal_alignmentlength;
+  filter_input.internal_gaps = hit->internal_gaps;
+  filter_input.internal_indels = hit->internal_indels;
+  filter_input.matches = hit->matches;
+  filter_input.query_len = searchinfo.qseqlen;
+  filter_input.target_len = static_cast<int>(db_getsequencelen(hit->target));
+  filter_input.trim_left_total = hit->trim_q_left + hit->trim_t_left;
+  filter_input.trim_right_total = hit->trim_q_right + hit->trim_t_right;
+
+  auto const metrics = search_aligned_compute_identity_metrics(filter_input);
+  hit->shortest = metrics.shortest;
+  hit->longest = metrics.longest;
+  hit->id0 = metrics.id0;
+  hit->id1 = metrics.id1;
+  hit->id2 = metrics.id2;
+  hit->id3 = metrics.id3;
+  hit->id4 = metrics.id4;
+  hit->id = metrics.id;
+
+  if (not search_aligned_threshold_filters_pass(filter_input, metrics))
     {
-      if (opt_cluster_unoise != nullptr)
-        {
-          const auto mismatches = hit->mismatches;
-          auto const skew = 1.0 * searchinfo.qsize / db_getabundance(hit->target);
-          auto const beta = 1.0 / std::pow(2, (1.0 * opt_unoise_alpha * mismatches) + 1);
+      /* rejected */
+      hit->rejected = true;
+      hit->weak = false;
+      return false;
+    }
 
-          if (skew <= beta or mismatches == 0)
-            {
-              /* accepted */
-              hit->accepted = true;
-              hit->weak = false;
-              return true;
-            }
-          /* rejected, but weak hit */
-          hit->rejected = true;
-          hit->weak = true;
-          return false;
-        }
+  if (opt_cluster_unoise != nullptr)
+    {
+      auto const mismatches = hit->mismatches;
+      auto const skew = 1.0 * searchinfo.qsize / db_getabundance(hit->target);
+      auto const beta = 1.0 / std::pow(2, (1.0 * opt_unoise_alpha * mismatches) + 1);
 
-      if (hit->id >= 100.0 * opt_id)
+      if (skew <= beta or mismatches == 0)
         {
           /* accepted */
           hit->accepted = true;
@@ -584,9 +706,16 @@ auto search_acceptable_aligned(struct searchinfo_s const & searchinfo,
       return false;
     }
 
-  /* rejected */
+  if (hit->id >= 100.0 * opt_id)
+    {
+      /* accepted */
+      hit->accepted = true;
+      hit->weak = false;
+      return true;
+    }
+  /* rejected, but weak hit */
   hit->rejected = true;
-  hit->weak = false;
+  hit->weak = true;
   return false;
 }
 

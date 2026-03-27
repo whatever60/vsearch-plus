@@ -62,6 +62,7 @@
 #include "allpairs.h"
 #include "chimera.h"
 #include "cluster.h"
+#include "cluster_paired.h"
 #include "cut.h"
 #include "derep.h"
 #include "derep_prefix.h"
@@ -110,6 +111,7 @@
 
 constexpr int64_t n_threads_max = 1024;
 constexpr auto max_line_length = std::size_t{80};
+static bool opt_reverse_from_positional = false;
 
 /* options */
 
@@ -124,6 +126,7 @@ bool opt_fastq_nostagger;
 bool opt_gzip_decompress;
 bool opt_label_substr_match;
 bool opt_lengthout;
+bool opt_interleaved;
 bool opt_n_mismatch;
 bool opt_no_progress;
 bool opt_quiet;
@@ -145,6 +148,7 @@ char * opt_blast6out;
 char * opt_borderline;
 char * opt_centroids;
 char * opt_chimeras;
+char * opt_chimeras_r2;
 char * opt_chimeras_tsv;
 char * opt_chimeras_alnout;
 char * opt_chimeras_denovo;
@@ -162,7 +166,9 @@ char * opt_dbnotmatched;
 char * opt_dbnotmatched2;
 char * opt_eetabbedout;
 char * opt_fastaout;
+char * opt_fastaout2;
 char * opt_fastaout_discarded;
+char * opt_fastaout_discarded2;
 char * opt_fastaout_discarded_rev;
 char * opt_fastaout_notmerged_fwd;
 char * opt_fastaout_notmerged_rev;
@@ -170,7 +176,9 @@ char * opt_fastaout_rev;
 char * opt_fastapairs;
 char * opt_fastq_convert;
 char * opt_fastqout;
+char * opt_fastqout2;
 char * opt_fastqout_discarded;
+char * opt_fastqout_discarded2;
 char * opt_fastqout_discarded_rev;
 char * opt_fastqout_notmerged_fwd;
 char * opt_fastqout_notmerged_rev;
@@ -188,6 +196,7 @@ char * opt_matched2;
 char * opt_mothur_shared_out;
 char * opt_msaout;
 char * opt_nonchimeras;
+char * opt_nonchimeras_r2;
 char * opt_nonchimeras_tsv;
 char * opt_notmatched;
 char * opt_notmatched2;
@@ -782,8 +791,8 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   static constexpr auto int_max = std::numeric_limits<int>::max();
   static constexpr auto long_min = std::numeric_limits<long>::min();
   static constexpr auto number_of_commands = std::size_t{50};
-  static constexpr auto number_of_options = std::size_t{257};
-  static constexpr auto max_number_of_options_per_command = std::size_t{110};
+  static constexpr auto number_of_options = std::size_t{264};
+  static constexpr auto max_number_of_options_per_command = std::size_t{120};
 
   parameters.progname = argv[0];
 
@@ -796,6 +805,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   opt_borderline = nullptr;
   opt_centroids = nullptr;
   opt_chimeras = nullptr;
+  opt_chimeras_r2 = nullptr;
   opt_chimeras_tsv = nullptr;
   opt_chimeras_denovo = nullptr;
   opt_chimeras_diff_pct = 0.0;
@@ -827,7 +837,9 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   opt_fasta_score = false;
   opt_fasta_width = 80;
   opt_fastaout = nullptr;
+  opt_fastaout2 = nullptr;
   opt_fastaout_discarded = nullptr;
+  opt_fastaout_discarded2 = nullptr;
   opt_fastaout_discarded_rev = nullptr;
   opt_fastaout_notmerged_fwd = nullptr;
   opt_fastaout_notmerged_rev = nullptr;
@@ -863,7 +875,9 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   opt_fastq_truncqual = long_min;
   opt_filter = 0;
   opt_fastqout = nullptr;
+  opt_fastqout2 = nullptr;
   opt_fastqout_discarded = nullptr;
+  opt_fastqout_discarded2 = nullptr;
   opt_fastqout_discarded_rev = nullptr;
   opt_fastqout_notmerged_fwd = nullptr;
   opt_fastqout_notmerged_rev = nullptr;
@@ -883,6 +897,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   opt_gap_open_target_right = 2;
   opt_gzip_decompress = false;
   opt_hardmask = 0;
+  opt_interleaved = false;
   opt_id = -1.0;
   opt_iddef = 2;
   opt_idprefix = 0;
@@ -938,6 +953,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   opt_n_mismatch = false;
   opt_no_progress = false;
   opt_nonchimeras = nullptr;
+  opt_nonchimeras_r2 = nullptr;
   opt_nonchimeras_tsv = nullptr;
   opt_notmatched = nullptr;
   opt_notmatched2 = nullptr;
@@ -959,6 +975,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   opt_relabel_self = false;
   opt_relabel_sha1 = false;
   opt_reverse = nullptr;
+  opt_reverse_from_positional = false;
   opt_rightjust = 0;
   opt_rowlen = 64;
   opt_samheader = false;
@@ -1019,6 +1036,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       option_bzip2_decompress,
       option_centroids,
       option_chimeras,
+      option_chimeras_r2,
       option_chimeras_tsv,
       option_chimeras_denovo,
       option_chimeras_diff_pct,
@@ -1055,7 +1073,9 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       option_fasta_score,
       option_fasta_width,
       option_fastaout,
+      option_fastaout2,
       option_fastaout_discarded,
+      option_fastaout_discarded2,
       option_fastaout_discarded_rev,
       option_fastaout_notmerged_fwd,
       option_fastaout_notmerged_rev,
@@ -1099,7 +1119,9 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       option_fastq_trunclen_keep,
       option_fastq_truncqual,
       option_fastqout,
+      option_fastqout2,
       option_fastqout_discarded,
+      option_fastqout_discarded2,
       option_fastqout_discarded_rev,
       option_fastqout_notmerged_fwd,
       option_fastqout_notmerged_rev,
@@ -1123,6 +1145,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       option_hspw,
       option_id,
       option_iddef,
+      option_interleaved,
       option_idprefix,
       option_idsuffix,
       option_join_padgap,
@@ -1181,6 +1204,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       option_n_mismatch,
       option_no_progress,
       option_nonchimeras,
+      option_nonchimeras_r2,
       option_nonchimeras_tsv,
       option_notmatched,
       option_notmatched2,
@@ -1278,6 +1302,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       {"bzip2_decompress",      no_argument,       nullptr, 0 },
       {"centroids",             required_argument, nullptr, 0 },
       {"chimeras",              required_argument, nullptr, 0 },
+      {"chimeras2",             required_argument, nullptr, 0 },
       {"chimeras_tsv",          required_argument, nullptr, 0 },
       {"chimeras_denovo",       required_argument, nullptr, 0 },
       {"chimeras_diff_pct",     required_argument, nullptr, 0 },
@@ -1314,7 +1339,9 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       {"fasta_score",           no_argument,       nullptr, 0 },
       {"fasta_width",           required_argument, nullptr, 0 },
       {"fastaout",              required_argument, nullptr, 0 },
+      {"fastaout2",             required_argument, nullptr, 0 },
       {"fastaout_discarded",    required_argument, nullptr, 0 },
+      {"fastaout_discarded2",   required_argument, nullptr, 0 },
       {"fastaout_discarded_rev",required_argument, nullptr, 0 },
       {"fastaout_notmerged_fwd",required_argument, nullptr, 0 },
       {"fastaout_notmerged_rev",required_argument, nullptr, 0 },
@@ -1358,7 +1385,9 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       {"fastq_trunclen_keep",   required_argument, nullptr, 0 },
       {"fastq_truncqual",       required_argument, nullptr, 0 },
       {"fastqout",              required_argument, nullptr, 0 },
+      {"fastqout2",             required_argument, nullptr, 0 },
       {"fastqout_discarded",    required_argument, nullptr, 0 },
+      {"fastqout_discarded2",   required_argument, nullptr, 0 },
       {"fastqout_discarded_rev",required_argument, nullptr, 0 },
       {"fastqout_notmerged_fwd",required_argument, nullptr, 0 },
       {"fastqout_notmerged_rev",required_argument, nullptr, 0 },
@@ -1382,6 +1411,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       {"hspw",                  required_argument, nullptr, 0 },
       {"id",                    required_argument, nullptr, 0 },
       {"iddef",                 required_argument, nullptr, 0 },
+      {"interleaved",           no_argument,       nullptr, 0 },
       {"idprefix",              required_argument, nullptr, 0 },
       {"idsuffix",              required_argument, nullptr, 0 },
       {"join_padgap",           required_argument, nullptr, 0 },
@@ -1403,7 +1433,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       {"maskfasta",             required_argument, nullptr, 0 },
       {"match",                 required_argument, nullptr, 0 },
       {"matched",               required_argument, nullptr, 0 },
-      {"matched2",              required_argument, nullptr, 0 },
+      {"match2",              required_argument, nullptr, 0 },
       {"max_unmasked_pct",      required_argument, nullptr, 0 },
       {"maxaccepts",            required_argument, nullptr, 0 },
       {"maxdiffs",              required_argument, nullptr, 0 },
@@ -1440,6 +1470,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       {"n_mismatch",            no_argument,       nullptr, 0 },
       {"no_progress",           no_argument,       nullptr, 0 },
       {"nonchimeras",           required_argument, nullptr, 0 },
+      {"nonchimeras2",          required_argument, nullptr, 0 },
       {"nonchimeras_tsv",       required_argument, nullptr, 0 },
       {"notmatched",            required_argument, nullptr, 0 },
       {"notmatched2",           required_argument, nullptr, 0 },
@@ -1991,6 +2022,11 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
           opt_iddef = args_getlong(optarg);
           break;
 
+        case option_interleaved:
+          opt_interleaved = true;
+          parameters.opt_interleaved = true;
+          break;
+
         case option_slots:
           fprintf(stderr, "WARNING: Option --slots is ignored\n");
           opt_slots = args_getlong(optarg);
@@ -2012,6 +2048,10 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
 
         case option_chimeras:
           opt_chimeras = optarg;
+          break;
+
+        case option_chimeras_r2:
+          opt_chimeras_r2 = optarg;
           break;
 
         case option_chimeras_tsv:
@@ -2036,6 +2076,10 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
 
         case option_nonchimeras:
           opt_nonchimeras = optarg;
+          break;
+
+        case option_nonchimeras_r2:
+          opt_nonchimeras_r2 = optarg;
           break;
 
         case option_nonchimeras_tsv:
@@ -2122,6 +2166,11 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
           parameters.opt_fastaout = optarg;
           break;
 
+        case option_fastaout2:
+          opt_fastaout2 = optarg;
+          parameters.opt_fastaout2 = optarg;
+          break;
+
         case option_xsize:
           opt_xsize = true;
           parameters.opt_xsize = true;
@@ -2164,14 +2213,29 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
           parameters.opt_fastqout = optarg;
           break;
 
+        case option_fastqout2:
+          opt_fastqout2 = optarg;
+          parameters.opt_fastqout2 = optarg;
+          break;
+
         case option_fastaout_discarded:
           opt_fastaout_discarded = optarg;
           parameters.opt_fastaout_discarded = optarg;
           break;
 
+        case option_fastaout_discarded2:
+          opt_fastaout_discarded2 = optarg;
+          parameters.opt_fastaout_discarded2 = optarg;
+          break;
+
         case option_fastqout_discarded:
           opt_fastqout_discarded = optarg;
           parameters.opt_fastqout_discarded = optarg;
+          break;
+
+        case option_fastqout_discarded2:
+          opt_fastqout_discarded2 = optarg;
+          parameters.opt_fastqout_discarded2 = optarg;
           break;
 
         case option_fastq_truncqual:
@@ -2360,6 +2424,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         case option_reverse:
           opt_reverse = optarg;
           parameters.opt_reverse = optarg;
+          opt_reverse_from_positional = false;
           break;
 
         case option_eetabbedout:
@@ -2741,10 +2806,10 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
       exit(EXIT_FAILURE);
     }
 
-  /* Terminate after reporting any extra non-option arguments */
-  if (optind < argc)
+  std::vector<char *> positional_args;
+  for (int i = optind; i < argc; ++i)
     {
-      fatal("Unrecognized string on command line (%s)", argv[optind]);
+      positional_args.push_back(argv[i]);
     }
 
   /* Below is a list of all command names, in alphabetical order. */
@@ -3310,7 +3375,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         option_relabel_md5,
         option_relabel_self,
         option_relabel_sha1,
-        option_reverse,
+        option_interleaved,
         option_rightjust,
         option_rowlen,
         option_samheader,
@@ -3593,7 +3658,9 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         option_eeout,
         option_fasta_width,
         option_fastaout,
+        option_fastaout2,
         option_fastaout_discarded,
+        option_fastaout_discarded2,
         option_fastaout_discarded_rev,
         option_fastaout_rev,
         option_fastq_ascii,
@@ -3614,10 +3681,13 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         option_fastq_trunclen_keep,
         option_fastq_truncqual,
         option_fastqout,
+        option_fastqout2,
         option_fastqout_discarded,
+        option_fastqout_discarded2,
         option_fastqout_discarded_rev,
         option_fastqout_rev,
         option_gzip_decompress,
+        option_interleaved,
         option_label_suffix,
         option_lengthout,
         option_log,
@@ -4010,7 +4080,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         option_no_progress,
         option_notrunclabels,
         option_quiet,
-        option_reverse,
+        option_interleaved,
         option_relabel,
         option_relabel_keep,
         option_relabel_md5,
@@ -4402,6 +4472,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         option_alignwidth,
         option_borderline,
         option_chimeras,
+        option_chimeras_r2,
         option_chimeras_tsv,
         option_dn,
         option_fasta_score,
@@ -4421,10 +4492,11 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         option_mismatch,
         option_no_progress,
         option_nonchimeras,
+        option_nonchimeras_r2,
         option_nonchimeras_tsv,
         option_notrunclabels,
         option_tabbedout,
-        option_reverse,
+        option_interleaved,
         option_qmask,
         option_quiet,
         option_relabel,
@@ -4647,7 +4719,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         option_relabel_md5,
         option_relabel_self,
         option_relabel_sha1,
-        option_reverse,
+        option_interleaved,
         option_rightjust,
         option_rowlen,
         option_samheader,
@@ -4778,6 +4850,40 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
         }
     }
 
+  auto const extension_command_selected =
+    (parameters.opt_fastx_uniques != nullptr) or
+    (parameters.opt_cluster_unoise != nullptr) or
+    (parameters.opt_uchime3_denovo != nullptr) or
+    (parameters.opt_usearch_global != nullptr) or
+    (parameters.opt_fastq_filter != nullptr);
+
+  if (not positional_args.empty())
+    {
+      if (not extension_command_selected)
+        {
+          fatal("Unrecognized string on command line (%s)", positional_args[0]);
+        }
+
+      if (opt_interleaved)
+        {
+          fatal("Do not provide a second input file when --interleaved is set");
+        }
+
+      if (positional_args.size() > 1U)
+        {
+          fatal("Expected at most one extra positional input file (R2)");
+        }
+
+      if ((parameters.opt_fastq_filter != nullptr) and (opt_reverse != nullptr))
+        {
+          fatal("fastq_filter input R2 can be provided either with --reverse (stock mode) or as a second positional input (extension mode), not both");
+        }
+
+      opt_reverse = positional_args[0];
+      parameters.opt_reverse = positional_args[0];
+      opt_reverse_from_positional = true;
+    }
+
   /* multi-threaded commands */
 
   if ((opt_threads < 0) or (opt_threads > n_threads_max))
@@ -4788,7 +4894,7 @@ auto args_init(int argc, char ** argv, struct Parameters & parameters) -> void
   if ((parameters.opt_allpairs_global != nullptr) or (parameters.opt_cluster_fast != nullptr) or (parameters.opt_cluster_size != nullptr) or
       (parameters.opt_cluster_smallmem != nullptr) or (parameters.opt_cluster_unoise != nullptr) or (parameters.opt_fastq_mergepairs != nullptr) or
       (parameters.opt_fastx_mask != nullptr) or (parameters.opt_maskfasta != nullptr) or (parameters.opt_search_exact != nullptr) or (parameters.opt_sintax != nullptr) or
-      (parameters.opt_uchime_ref != nullptr) or (parameters.opt_usearch_global != nullptr))
+      (parameters.opt_uchime_ref != nullptr) or (parameters.opt_uchime3_denovo != nullptr) or (parameters.opt_usearch_global != nullptr))
     {
       if (parameters.opt_threads == 0)
         {
@@ -5269,7 +5375,8 @@ auto cmd_help(struct Parameters const & parameters) -> void {
           "  --uchime2_denovo FILENAME   detect chimeras de novo in denoised amplicons\n"
           "  --uchime3_denovo FILENAME   detect chimeras de novo in denoised amplicons\n"
           "  --uchime_ref FILENAME       detect chimeras using a reference database\n"
-          "  --reverse FILENAME          paired-end reverse reads for paired uchime3 extension\n"
+          "  --interleaved               paired extension input is interleaved FASTA/FASTQ (R1,R2,...)\n"
+          "  [paired extension input]    provide R2 as second positional argument when not interleaved\n"
           " Data\n"
           "  --db FILENAME               reference database for --uchime_ref\n"
           " Parameters\n"
@@ -5286,9 +5393,11 @@ auto cmd_help(struct Parameters const & parameters) -> void {
           "  --alignwidth INT            width of alignment in uchimealn output (80)\n"
           "  --borderline FILENAME       output borderline chimeric sequences to file\n"
           "  --chimeras FILENAME         output chimeric sequences to file\n"
+          "  --chimeras2 FILENAME        paired uchime3: output chimeric right-end sequences\n"
           "  --chimeras_tsv FILENAME     paired uchime3: output chimeric pairs as TSV catalog\n"
           "  --fasta_score               include chimera score in FASTA output\n"
           "  --nonchimeras FILENAME      output non-chimeric sequences to file\n"
+          "  --nonchimeras2 FILENAME     paired uchime3: output non-chimeric right-end sequences\n"
           "  --nonchimeras_tsv FILENAME  paired uchime3: output non-chimeric pairs as TSV catalog\n"
           "  --relabel STRING            relabel nonchimeras with this prefix string\n"
           "  --relabel_keep              keep the old label after the new when relabelling\n"
@@ -5529,6 +5638,8 @@ auto cmd_help(struct Parameters const & parameters) -> void {
           " Data\n"
           "  --db FILENAME               FASTA or UDB database (only FASTA for search_exact)\n"
           "  --db2 FILENAME              paired right-end FASTA/FASTQ database (paired usearch_global)\n"
+          "  --interleaved               paired extension input is interleaved FASTA/FASTQ (R1,R2,...)\n"
+          "  [paired extension input]    provide R2 as second positional argument when not interleaved\n"
           " Parameters\n"
           "  --dbmask none|dust|soft     mask db with dust, soft or no method (dust)\n"
           "  --fulldp                    full dynamic programming alignment (always on)\n"
@@ -5585,7 +5696,7 @@ auto cmd_help(struct Parameters const & parameters) -> void {
           "  --fastapairs FILENAME       FASTA file with pairs of query and target\n"
           "  --lcaout FILENAME           output LCA of matching sequences to file\n"
           "  --matched FILENAME          FASTA file for matching query sequences\n"
-          "  --matched2 FILENAME         paired FASTA file for matching query right-end sequences\n"
+          "  --match2 FILENAME          paired FASTA file for matching query right-end sequences\n"
           "  --mothur_shared_out FN      filename for OTU table output in mothur format\n"
           "  --notmatched FILENAME       FASTA file for non-matching query sequences\n"
           "  --notmatched2 FILENAME      paired FASTA file for non-matching query right-end sequences\n"
@@ -5658,7 +5769,9 @@ auto cmd_help(struct Parameters const & parameters) -> void {
           "Trimming and filtering\n"
           "  --fastx_filter FILENAME     trim and filter sequences in FASTA/FASTQ file\n"
           "  --fastq_filter FILENAME     trim and filter sequences in FASTQ file\n"
-          "  --reverse FILENAME          FASTQ file with other end of paired-end reads\n"
+          "  --interleaved               paired fastq_filter extension input is interleaved FASTQ (R1,R2,...)\n"
+          "  [paired extension input]    provide R2 as second positional argument when not interleaved\n"
+          "  --reverse FILENAME          FASTQ file with other end of paired-end reads (stock mode)\n"
           " Parameters\n"
           "  --fastq_ascii INT           FASTQ input quality score ASCII base char (33)\n"
           "  --fastq_maxee REAL          discard if expected error value is higher\n"
@@ -5681,11 +5794,15 @@ auto cmd_help(struct Parameters const & parameters) -> void {
           " Output\n"
           "  --eeout                     include expected errors in output\n"
           "  --fastaout FN               FASTA filename for passed sequences\n"
+          "  --fastaout2 FN              paired extension: FASTA filename for passed R2 sequences\n"
           "  --fastaout_discarded FN     FASTA filename for discarded sequences\n"
+          "  --fastaout_discarded2 FN    paired extension: FASTA filename for discarded R2 sequences\n"
           "  --fastaout_discarded_rev FN FASTA filename for discarded reverse sequences\n"
           "  --fastaout_rev FN           FASTA filename for passed reverse sequences\n"
           "  --fastqout FN               FASTQ filename for passed sequences\n"
+          "  --fastqout2 FN              paired extension: FASTQ filename for passed R2 sequences\n"
           "  --fastqout_discarded FN     FASTQ filename for discarded sequences\n"
+          "  --fastqout_discarded2 FN    paired extension: FASTQ filename for discarded R2 sequences\n"
           "  --fastqout_discarded_rev FN FASTQ filename for discarded reverse sequences\n"
           "  --fastqout_rev FN           FASTQ filename for passed reverse sequences\n"
           "  --relabel STRING            relabel filtered sequences with given prefix\n"
@@ -5735,8 +5852,15 @@ auto cmd_allpairs_global(struct Parameters const & parameters) -> void
 
 auto cmd_usearch_global(struct Parameters const & parameters) -> void
 {
-  if (parameters.opt_reverse != nullptr)
+  auto const paired_query_input = parameters.opt_interleaved or (parameters.opt_reverse != nullptr);
+
+  if (paired_query_input)
     {
+      if (parameters.opt_interleaved and (parameters.opt_reverse != nullptr))
+        {
+          fatal("Paired usearch_global query input must be either split (R1 + R2 positional input) or --interleaved, not both");
+        }
+
       if (opt_strand != 1)
         {
           fatal("Paired usearch_global only supports --strand plus");
@@ -5756,21 +5880,21 @@ auto cmd_usearch_global(struct Parameters const & parameters) -> void
           fatal("Paired usearch_global does not support custom --userfields; use default paired --userout format");
         }
 
-      if ((opt_matched2 != nullptr) and (opt_matched == nullptr))
+      if ((opt_matched2 != nullptr) != (opt_matched != nullptr))
         {
-          fatal("Paired usearch_global option --matched2 requires --matched for the forward output file");
+          fatal("Paired usearch_global requires both --matched and --match2 (split R1/R2 output)");
         }
-      if ((opt_notmatched2 != nullptr) and (opt_notmatched == nullptr))
+      if ((opt_notmatched2 != nullptr) != (opt_notmatched != nullptr))
         {
-          fatal("Paired usearch_global option --notmatched2 requires --notmatched for the forward output file");
+          fatal("Paired usearch_global requires both --notmatched and --notmatched2 (split R1/R2 output)");
         }
-      if ((opt_dbmatched2 != nullptr) and (parameters.opt_dbmatched == nullptr))
+      if ((opt_dbmatched2 != nullptr) != (parameters.opt_dbmatched != nullptr))
         {
-          fatal("Paired usearch_global option --dbmatched2 requires --dbmatched for the forward output file");
+          fatal("Paired usearch_global requires both --dbmatched and --dbmatched2 (split R1/R2 output)");
         }
-      if ((opt_dbnotmatched2 != nullptr) and (parameters.opt_dbnotmatched == nullptr))
+      if ((opt_dbnotmatched2 != nullptr) != (parameters.opt_dbnotmatched != nullptr))
         {
-          fatal("Paired usearch_global option --dbnotmatched2 requires --dbnotmatched for the forward output file");
+          fatal("Paired usearch_global requires both --dbnotmatched and --dbnotmatched2 (split R1/R2 output)");
         }
 
       if ((opt_userout == nullptr) and
@@ -5804,9 +5928,10 @@ auto cmd_usearch_global(struct Parameters const & parameters) -> void
       (opt_notmatched2 != nullptr) or
       (opt_dbmatched2 != nullptr) or
       (opt_dbnotmatched2 != nullptr) or
-      (opt_unknown_name != nullptr))
+      (opt_unknown_name != nullptr) or
+      parameters.opt_interleaved)
     {
-      fatal("Options --db2/--matched2/--notmatched2/--dbmatched2/--dbnotmatched2/--unknown_name are only supported with paired usearch_global (--reverse)");
+      fatal("Options --db2/--match2/--notmatched2/--dbmatched2/--dbnotmatched2/--unknown_name/--interleaved are only supported with paired usearch_global input");
     }
 
   /* check options */
@@ -5922,8 +6047,17 @@ auto cmd_none(struct Parameters const & parameters) -> void {
 
 auto cmd_cluster(struct Parameters const & parameters) -> void
 {
-  if ((parameters.opt_cluster_unoise != nullptr) and (parameters.opt_reverse != nullptr))
+  auto const paired_cluster_unoise_input =
+    (parameters.opt_cluster_unoise != nullptr) and
+    (parameters.opt_interleaved or (parameters.opt_reverse != nullptr));
+
+  if (paired_cluster_unoise_input)
     {
+      if (parameters.opt_interleaved and (parameters.opt_reverse != nullptr))
+        {
+          fatal("Paired cluster_unoise input must be either split (R1 + R2 positional input) or --interleaved, not both");
+        }
+
       auto const paired_fasta_requested =
         ((parameters.opt_fastaout != nullptr) and (parameters.opt_fastaout_rev != nullptr));
 
@@ -5949,7 +6083,7 @@ auto cmd_cluster(struct Parameters const & parameters) -> void
           fatal("Paired cluster_unoise with --centroids requires --fastaout_rev to write paired centroid FASTA output");
         }
 
-      tav_cluster_unoise(parameters);
+      cluster_unoise_paired(parameters);
       return;
     }
 
@@ -5994,8 +6128,17 @@ auto cmd_cluster(struct Parameters const & parameters) -> void
 
 auto cmd_chimera(struct Parameters const & parameters) -> void
 {
-  if ((parameters.opt_uchime3_denovo != nullptr) and (parameters.opt_reverse != nullptr))
+  auto const paired_uchime3_input =
+    (parameters.opt_uchime3_denovo != nullptr) and
+    (parameters.opt_interleaved or (parameters.opt_reverse != nullptr));
+
+  if (paired_uchime3_input)
     {
+      if (parameters.opt_interleaved and (parameters.opt_reverse != nullptr))
+        {
+          fatal("Paired uchime3_denovo input must be either split (R1 + R2 positional input) or --interleaved, not both");
+        }
+
       if (opt_abskew < 1.0)
         {
           fatal("Argument to --abskew must be >= 1.0");
@@ -6011,6 +6154,16 @@ auto cmd_chimera(struct Parameters const & parameters) -> void
           fatal("Argument to --dn must be > 0");
         }
 
+      if ((opt_chimeras_r2 != nullptr) != (opt_chimeras != nullptr))
+        {
+          fatal("Paired uchime3_denovo requires both --chimeras and --chimeras2 for split R1/R2 FASTA output");
+        }
+
+      if ((opt_nonchimeras_r2 != nullptr) != (opt_nonchimeras != nullptr))
+        {
+          fatal("Paired uchime3_denovo requires both --nonchimeras and --nonchimeras2 for split R1/R2 FASTA output");
+        }
+
       if ((opt_chimeras == nullptr) and
           (opt_chimeras_tsv == nullptr) and
           (opt_nonchimeras == nullptr) and
@@ -6020,17 +6173,20 @@ auto cmd_chimera(struct Parameters const & parameters) -> void
           (opt_uchimealns == nullptr) and
           (opt_borderline == nullptr))
         {
-          fatal("Paired uchime3_denovo requires output with --nonchimeras/--chimeras (FASTA), --nonchimeras_tsv/--chimeras_tsv, --tabbedout, --uchimeout, --uchimealns, and/or --borderline");
+          fatal("Paired uchime3_denovo requires output with --nonchimeras+--nonchimeras2 and/or --chimeras+--chimeras2 (FASTA), --nonchimeras_tsv/--chimeras_tsv, --tabbedout, --uchimeout, --uchimealns, and/or --borderline");
         }
 
       tav_uchime3_denovo(parameters);
       return;
     }
 
-  if ((parameters.opt_uchime3_denovo != nullptr) and (parameters.opt_reverse == nullptr) and
-      ((opt_chimeras_tsv != nullptr) or (opt_nonchimeras_tsv != nullptr)))
+  if ((parameters.opt_uchime3_denovo != nullptr) and (not paired_uchime3_input) and
+      ((opt_chimeras_tsv != nullptr) or
+       (opt_nonchimeras_tsv != nullptr) or
+       (opt_chimeras_r2 != nullptr) or
+       (opt_nonchimeras_r2 != nullptr)))
     {
-      fatal("Options --chimeras_tsv/--nonchimeras_tsv are only supported with paired uchime3_denovo (--reverse)");
+      fatal("Options --chimeras_tsv/--nonchimeras_tsv/--chimeras2/--nonchimeras2 are only supported with paired uchime3_denovo input");
     }
 
   if ((opt_chimeras == nullptr)  and (opt_nonchimeras == nullptr) and
@@ -6079,6 +6235,61 @@ auto cmd_chimera(struct Parameters const & parameters) -> void
     }
 
   chimera(parameters);
+}
+
+
+auto cmd_fastq_filter(struct Parameters const & parameters) -> void
+{
+  auto const paired_extension_input = parameters.opt_interleaved or opt_reverse_from_positional;
+
+  if (paired_extension_input)
+    {
+      if (parameters.opt_interleaved and (parameters.opt_reverse != nullptr))
+        {
+          fatal("Paired fastq_filter extension input must be either split (R1 + R2 positional input) or --interleaved, not both");
+        }
+
+      if ((opt_fastqout_rev != nullptr) or
+          (opt_fastqout_discarded_rev != nullptr) or
+          (opt_fastaout_rev != nullptr) or
+          (opt_fastaout_discarded_rev != nullptr))
+        {
+          fatal("Paired fastq_filter extension input does not support --fastqout_rev/--fastqout_discarded_rev/--fastaout_rev/--fastaout_discarded_rev; use --fastqout2/--fastqout_discarded2/--fastaout2/--fastaout_discarded2");
+        }
+
+      if ((opt_fastqout2 != nullptr) != (opt_fastqout != nullptr))
+        {
+          fatal("Paired fastq_filter extension output requires both --fastqout and --fastqout2");
+        }
+
+      if ((opt_fastqout_discarded2 != nullptr) != (opt_fastqout_discarded != nullptr))
+        {
+          fatal("Paired fastq_filter extension output requires both --fastqout_discarded and --fastqout_discarded2");
+        }
+
+      if ((opt_fastaout2 != nullptr) != (opt_fastaout != nullptr))
+        {
+          fatal("Paired fastq_filter extension output requires both --fastaout and --fastaout2");
+        }
+
+      if ((opt_fastaout_discarded2 != nullptr) != (opt_fastaout_discarded != nullptr))
+        {
+          fatal("Paired fastq_filter extension output requires both --fastaout_discarded and --fastaout_discarded2");
+        }
+
+      fastq_filter_paired_ext(parameters);
+      return;
+    }
+
+  if ((opt_fastqout2 != nullptr) or
+      (opt_fastqout_discarded2 != nullptr) or
+      (opt_fastaout2 != nullptr) or
+      (opt_fastaout_discarded2 != nullptr))
+    {
+      fatal("Options --fastqout2/--fastqout_discarded2/--fastaout2/--fastaout_discarded2 are only supported with paired fastq_filter extension input (R1 R2 positional input or --interleaved)");
+    }
+
+  fastq_filter(parameters);
 }
 
 
@@ -6276,7 +6487,7 @@ auto main(int argc, char** argv) -> int
     }
   else if (parameters.opt_fastq_filter != nullptr)
     {
-      fastq_filter(parameters);
+      cmd_fastq_filter(parameters);
     }
   else if (parameters.opt_fastx_filter != nullptr)
     {
@@ -6375,7 +6586,8 @@ auto main(int argc, char** argv) -> int
     }
   else if (parameters.opt_fastx_uniques != nullptr)
     {
-      if (parameters.opt_reverse != nullptr)
+      auto const paired_fastx_uniques_input = parameters.opt_interleaved or (parameters.opt_reverse != nullptr);
+      if (paired_fastx_uniques_input)
         {
           tav_fastx_uniques(parameters);
         }

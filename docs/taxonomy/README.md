@@ -36,7 +36,25 @@ python3 rdp_tav_taxonomy.py \
 
 The command writes one stock-compatible classification stream where each line is one TAV record.
 
-- `--output`: primary taxonomy output (`allrank`, `fixrank`, `filterbyconf`, or `db`)
-- `--shortseq-outfile`: optional IDs of short/unclassifiable paired records
+- Primary output option (stock aliases supported):
+  - `--output` / `--outputFile` / `-o`
+- Supported stock-style config aliases:
+  - `--format` / `-f` (`allrank`, `fixrank`, `filterbyconf`, `db`)
+  - `--conf` / `-c`
+  - `--min-words` / `--minWords` / `-w`
+  - `--shortseq-outfile` / `--shortseq_outfile` / `-s`
+  - `--bootstrap_outfile` / `-b` (bootstrap summary output)
+  - `--hier_outfile` / `-h` (hierarchy count output)
+  - `--train-prop` / `--train_propfile` / `-t`
+  - `--gene` / `-g`
+  - `--queryFile` / `-q` (accepted, ignored)
+
+Not currently supported in paired mode:
+
+- `--bootstrap_outfile` / `-b`
+- `--hier_outfile` / `-h`
+- `--metadata` / `-d`
+- `--biomFile` / `-m`
+- `--format biom`
 
 No per-anchor merge outputs are produced.

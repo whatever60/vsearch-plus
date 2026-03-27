@@ -57,6 +57,7 @@ bitmap.h \
 chimera.h \
 city.h \
 cluster.h \
+cluster_paired.h \
 cpu.h \
 cut.h \
 db.h \
@@ -90,6 +91,7 @@ rereplicate.h \
 results.h \
 search.h \
 searchcore.h \
+searchcore_paired.h \
 search_exact.h \
 sff_convert.h \
 showalign.h \
@@ -161,6 +163,7 @@ attributes.cc \
 bitmap.cc \
 chimera.cc \
 cluster.cc \
+cluster_paired.cc \
 cut.cc \
 db.cc \
 dbhash.cc \
@@ -193,6 +196,7 @@ rereplicate.cc \
 results.cc \
 search.cc \
 searchcore.cc \
+searchcore_paired.cc \
 search_exact.cc \
 sff_convert.cc \
 sha1.c \

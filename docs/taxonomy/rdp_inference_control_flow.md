@@ -22,6 +22,9 @@ Entrypoint: `python3 rdp_tav_taxonomy.py`
 
 1. Python wrapper resolves RDP jar/model paths from manifest.
 2. Python wrapper compiles and invokes Java extension classes in `java/src/org/vsearchplus/rdp`.
+   - Wrapper accepts stock-style classify aliases for core options (`-o/-f/-c/-w/-s/-t/-g`) plus paired input args.
+   - Wrapper supports stock-style `-b/--bootstrap_outfile` and `-h/--hier_outfile`.
+   - Metadata/biom stock options are rejected explicitly in paired mode.
 3. Java `PairedClassifierMain` reads paired records from:
    - split inputs (`--input`, `--input2`) or
    - interleaved input (`--interleaved`).

@@ -550,129 +550,152 @@ auto find_best_parents_long(struct chimera_info_s * ci) -> int
 }
 
 
+auto select_best_two_parents_from_match_matrix(std::vector<int> & match,
+                                               int const cand_count,
+                                               int const query_len,
+                                               int const window,
+                                               std::array<int, 2> & best_parent_cand) -> bool
+{
+  best_parent_cand = {{-1, -1}};
+
+  if ((cand_count <= 0) or (query_len <= 0) or (window <= 0))
+    {
+      return false;
+    }
+
+  auto const stride = static_cast<std::size_t>(query_len);
+  auto const required = static_cast<std::size_t>(cand_count) * stride;
+  if (match.size() < required)
+    {
+      return false;
+    }
+
+  std::vector<int> smooth(required, 0);
+  std::vector<int> maxsmooth(static_cast<std::size_t>(query_len), 0);
+  std::vector<bool> cand_selected(static_cast<std::size_t>(cand_count), false);
+
+  for (auto f = 0; f < 2; ++f)
+    {
+      if (f > 0)
+        {
+          auto const prev = best_parent_cand[static_cast<std::size_t>(f - 1)];
+          if (prev < 0)
+            {
+              break;
+            }
+
+          for (auto qpos = window - 1; qpos < query_len; ++qpos)
+            {
+              auto const z = (prev * query_len) + qpos;
+              if (smooth[static_cast<std::size_t>(z)] ==
+                  maxsmooth[static_cast<std::size_t>(qpos)])
+                {
+                  for (auto i = qpos + 1 - window; i <= qpos; ++i)
+                    {
+                      for (auto j = 0; j < cand_count; ++j)
+                        {
+                          match[(static_cast<std::size_t>(j) * stride) + static_cast<std::size_t>(i)] = 0;
+                        }
+                    }
+                }
+            }
+        }
+
+      std::fill(maxsmooth.begin(), maxsmooth.end(), 0);
+
+      for (auto i = 0; i < cand_count; ++i)
+        {
+          if (cand_selected[static_cast<std::size_t>(i)])
+            {
+              continue;
+            }
+
+          auto sum = 0;
+          for (auto qpos = 0; qpos < query_len; ++qpos)
+            {
+              auto const z = (i * query_len) + qpos;
+              sum += match[static_cast<std::size_t>(z)];
+              if (qpos >= window)
+                {
+                  sum -= match[static_cast<std::size_t>(z - window)];
+                }
+              if (qpos >= window - 1)
+                {
+                  smooth[static_cast<std::size_t>(z)] = sum;
+                  maxsmooth[static_cast<std::size_t>(qpos)] =
+                    std::max(smooth[static_cast<std::size_t>(z)],
+                             maxsmooth[static_cast<std::size_t>(qpos)]);
+                }
+            }
+        }
+
+      std::vector<int> wins(static_cast<std::size_t>(cand_count), 0);
+      for (auto qpos = window - 1; qpos < query_len; ++qpos)
+        {
+          if (maxsmooth[static_cast<std::size_t>(qpos)] == 0)
+            {
+              continue;
+            }
+
+          for (auto i = 0; i < cand_count; ++i)
+            {
+              if (cand_selected[static_cast<std::size_t>(i)])
+                {
+                  continue;
+                }
+
+              auto const z = (i * query_len) + qpos;
+              if (smooth[static_cast<std::size_t>(z)] ==
+                  maxsmooth[static_cast<std::size_t>(qpos)])
+                {
+                  ++wins[static_cast<std::size_t>(i)];
+                }
+            }
+        }
+
+      auto maxwins = 0;
+      auto best = -1;
+      for (auto i = 0; i < cand_count; ++i)
+        {
+          auto const w = wins[static_cast<std::size_t>(i)];
+          if (w > maxwins)
+            {
+              maxwins = w;
+              best = i;
+            }
+        }
+
+      if (best < 0)
+        {
+          break;
+        }
+
+      best_parent_cand[static_cast<std::size_t>(f)] = best;
+      cand_selected[static_cast<std::size_t>(best)] = true;
+    }
+
+  return (best_parent_cand[0] >= 0) and (best_parent_cand[1] >= 0);
+}
+
+
 auto find_best_parents(struct chimera_info_s * ci) -> int
 {
   reset_matches(ci);
   find_matches(ci);
 
-  std::array<int, maxparents> best_parent_cand {{}};
+  std::array<int, 2> best_parent_cand {{-1, -1}};
+  auto const found = select_best_two_parents_from_match_matrix(ci->match,
+                                                                ci->cand_count,
+                                                                ci->query_len,
+                                                                window,
+                                                                best_parent_cand);
 
-  for (int f = 0; f < 2; ++f)
+  for (auto f = 0U; f < best_parent_cand.size(); ++f)
     {
-      best_parent_cand[f] = -1;
-      ci->best_parents[f] = -1;
-    }
-
-  std::vector<bool> cand_selected(ci->cand_count, false);
-
-  for (int f = 0; f < 2; ++f)
-    {
-      if (f > 0)
-        {
-          /* for all parents except the first */
-
-          /* wipe out matches for all candidates in positions
-             covered by the previous parent */
-
-          for (int qpos = window - 1; qpos < ci->query_len; ++qpos)
-            {
-              int const z = (best_parent_cand[f - 1] * ci->query_len) + qpos;
-              if (ci->smooth[z] == ci->maxsmooth[qpos])
-                {
-                  for (int i = qpos + 1 - window; i <= qpos; ++i)
-                    {
-                      for (int j = 0; j < ci->cand_count; ++j)
-                        {
-                          ci->match[(j * ci->query_len) + i] = 0;
-                        }
-                    }
-                }
-            }
-        }
-
-
-      /* Compute smoothed score in a 32bp window for each candidate. */
-      /* Record max smoothed score for each position among candidates left. */
-
-      // refactoring: reset or initialize?
-      std::fill(ci->maxsmooth.begin(), ci->maxsmooth.end(), 0);
-
-      for (int i = 0; i < ci->cand_count; ++i)
-        {
-          if (not cand_selected[i])
-            {
-              int sum = 0;
-              for (int qpos = 0; qpos < ci->query_len; ++qpos)
-                {
-                  int const z = (i * ci->query_len) + qpos;
-                  sum += ci->match[z];
-                  if (qpos >= window)
-                    {
-                      sum -= ci->match[z - window];
-                    }
-                  if (qpos >= window - 1)
-                    {
-                      ci->smooth[z] = sum;
-                      ci->maxsmooth[qpos] = std::max(ci->smooth[z], ci->maxsmooth[qpos]);
-                    }
-                }
-            }
-        }
-
-
-      /* find parent with the most wins */
-
-      std::vector<int> wins(ci->cand_count, 0);
-
-      for (int qpos = window - 1; qpos < ci->query_len; ++qpos)
-        {
-          if (ci->maxsmooth[qpos] != 0)
-            {
-              for (int i = 0; i < ci->cand_count; ++i)
-                {
-                  if (not cand_selected[i])
-                    {
-                      int const z = (i * ci->query_len) + qpos;
-                      if (ci->smooth[z] == ci->maxsmooth[qpos])
-                        {
-                          ++wins[i];
-                        }
-                    }
-                }
-            }
-        }
-
-      /* select best parent based on most wins */
-
-      int maxwins = 0;
-      for (int i = 0; i < ci->cand_count; ++i)
-        {
-          int const w = wins[i];
-          if (w > maxwins)
-            {
-              maxwins = w;
-              best_parent_cand[f] = i;
-            }
-        }
-
-      /* terminate loop if no parent found */
-
-      if (best_parent_cand[f] < 0) {
-        break;
-      }
-
-#if 0
-      printf("Query %d: Best parent (%d) candidate: %d. Wins: %d\n",
-             ci->query_no, f, best_parent_cand[f], maxwins);
-#endif
-
       ci->best_parents[f] = best_parent_cand[f];
-      cand_selected[best_parent_cand[f]] = true;
     }
 
-  /* Check if at least 2 candidates selected */
-
-  return static_cast<int>((best_parent_cand[0] >= 0) and (best_parent_cand[1] >= 0));
+  return static_cast<int>(found);
 }
 
 

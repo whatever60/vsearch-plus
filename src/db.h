@@ -128,3 +128,11 @@ auto db_setinfo(bool new_is_fastq,
                 uint64_t new_longest,
                 uint64_t new_shortest,
                 uint64_t new_longestheader) -> void;
+
+auto db_add(bool is_fastq,
+            char const * header,
+            char const * sequence,
+            char const * quality,
+            std::size_t headerlength,
+            std::size_t sequencelength,
+            int64_t abundance) -> void;

@@ -68,6 +68,7 @@
 #include <cstdio>  // std::FILE, std::fprintf, std::fclose
 #include <cstdlib>  // std::exit, EXIT_FAILURE
 #include <limits>
+#include <string>
 
 
 inline auto fastq_get_qual(char const quality_symbol) -> int
@@ -126,7 +127,21 @@ struct analysis_res
 };
 
 
-auto analyse(fastx_handle input_handle) -> struct analysis_res
+inline auto ee_thresholds_pass(double const ee, int const length) -> bool
+{
+  if (ee > opt_fastq_maxee)
+    {
+      return false;
+    }
+  if ((length > 0) and ((ee / length) > opt_fastq_maxee_rate))
+    {
+      return false;
+    }
+  return true;
+}
+
+
+auto analyse(fastx_handle input_handle, bool const apply_ee_filters) -> struct analysis_res
 {
   auto const fastq_trunclen = static_cast<int>(opt_fastq_trunclen);
   auto const fastq_trunclen_keep = static_cast<int>(opt_fastq_trunclen_keep);
@@ -196,11 +211,7 @@ auto analyse(fastx_handle input_handle) -> struct analysis_res
         }
 
       /* filter by expected errors (ee) */
-      if (res.ee > opt_fastq_maxee)
-        {
-          res.discarded = true;
-        }
-      if ((res.length > 0) and ((res.ee / res.length) > opt_fastq_maxee_rate))
+      if (apply_ee_filters and (not ee_thresholds_pass(res.ee, res.length)))
         {
           res.discarded = true;
         }
@@ -415,10 +426,10 @@ auto filter(bool const fastq_only, char * filename) -> void
       res1.ee = 0.0;
       struct analysis_res res2;
 
-      res1 = analyse(forward_handle);
+      res1 = analyse(forward_handle, true);
       if (reverse_handle != nullptr)
         {
-          res2 = analyse(reverse_handle);
+          res2 = analyse(reverse_handle, true);
         }
 
       if (res1.discarded or res2.discarded)
@@ -642,6 +653,411 @@ auto filter(bool const fastq_only, char * filename) -> void
 }
 
 
+auto filter_paired_ext_fastq(char * filename, bool const interleaved) -> void
+{
+  if ((opt_fastqout == nullptr) and
+      (opt_fastqout2 == nullptr) and
+      (opt_fastqout_discarded == nullptr) and
+      (opt_fastqout_discarded2 == nullptr) and
+      (opt_fastaout == nullptr) and
+      (opt_fastaout2 == nullptr) and
+      (opt_fastaout_discarded == nullptr) and
+      (opt_fastaout_discarded2 == nullptr))
+    {
+      fatal("No output files specified");
+    }
+
+  auto * forward_handle = fastx_open(filename);
+  if (forward_handle == nullptr)
+    {
+      fatal("Unrecognized file type (not proper FASTA or FASTQ format)");
+    }
+
+  if (not (forward_handle->is_fastq or forward_handle->is_empty))
+    {
+      fatal("FASTA input files not allowed with fastq_filter, consider using fastx_filter command instead");
+    }
+
+  fastx_handle reverse_handle = nullptr;
+  if (not interleaved)
+    {
+      if (opt_reverse == nullptr)
+        {
+          fatal("No reverse reads file specified for paired fastq_filter extension mode");
+        }
+
+      reverse_handle = fastx_open(opt_reverse);
+      if (reverse_handle == nullptr)
+        {
+          fatal("Unrecognized file type (not proper FASTA or FASTQ format) for reverse reads");
+        }
+
+      if (forward_handle->is_fastq != reverse_handle->is_fastq)
+        {
+          fatal("The forward and reverse input sequence must in the same format, either FASTA or FASTQ");
+        }
+    }
+
+  std::FILE * fp_fastaout = nullptr;
+  std::FILE * fp_fastaout2 = nullptr;
+  std::FILE * fp_fastqout = nullptr;
+  std::FILE * fp_fastqout2 = nullptr;
+  std::FILE * fp_fastaout_discarded = nullptr;
+  std::FILE * fp_fastaout_discarded2 = nullptr;
+  std::FILE * fp_fastqout_discarded = nullptr;
+  std::FILE * fp_fastqout_discarded2 = nullptr;
+
+  if (opt_fastaout != nullptr)
+    {
+      fp_fastaout = fopen_output(opt_fastaout);
+      if (fp_fastaout == nullptr)
+        {
+          fatal("Unable to open FASTA output file for writing");
+        }
+    }
+
+  if (opt_fastaout2 != nullptr)
+    {
+      fp_fastaout2 = fopen_output(opt_fastaout2);
+      if (fp_fastaout2 == nullptr)
+        {
+          fatal("Unable to open FASTA output file for writing");
+        }
+    }
+
+  if (opt_fastqout != nullptr)
+    {
+      fp_fastqout = fopen_output(opt_fastqout);
+      if (fp_fastqout == nullptr)
+        {
+          fatal("Unable to open FASTQ output file for writing");
+        }
+    }
+
+  if (opt_fastqout2 != nullptr)
+    {
+      fp_fastqout2 = fopen_output(opt_fastqout2);
+      if (fp_fastqout2 == nullptr)
+        {
+          fatal("Unable to open FASTQ output file for writing");
+        }
+    }
+
+  if (opt_fastaout_discarded != nullptr)
+    {
+      fp_fastaout_discarded = fopen_output(opt_fastaout_discarded);
+      if (fp_fastaout_discarded == nullptr)
+        {
+          fatal("Unable to open FASTA output file for writing");
+        }
+    }
+
+  if (opt_fastaout_discarded2 != nullptr)
+    {
+      fp_fastaout_discarded2 = fopen_output(opt_fastaout_discarded2);
+      if (fp_fastaout_discarded2 == nullptr)
+        {
+          fatal("Unable to open FASTA output file for writing");
+        }
+    }
+
+  if (opt_fastqout_discarded != nullptr)
+    {
+      fp_fastqout_discarded = fopen_output(opt_fastqout_discarded);
+      if (fp_fastqout_discarded == nullptr)
+        {
+          fatal("Unable to open FASTQ output file for writing");
+        }
+    }
+
+  if (opt_fastqout_discarded2 != nullptr)
+    {
+      fp_fastqout_discarded2 = fopen_output(opt_fastqout_discarded2);
+      if (fp_fastqout_discarded2 == nullptr)
+        {
+          fatal("Unable to open FASTQ output file for writing");
+        }
+    }
+
+  struct read_snapshot
+  {
+    std::string header;
+    std::string sequence;
+    std::string quality;
+    int64_t abundance = 0;
+  };
+
+  auto const snapshot_read = [](fastx_handle handle) -> struct read_snapshot
+    {
+      struct read_snapshot read;
+
+      auto const header_length = fastx_get_header_length(handle);
+      read.header.assign(fastx_get_header(handle), header_length);
+
+      auto const sequence_length = fastx_get_sequence_length(handle);
+      read.sequence.assign(fastx_get_sequence(handle), sequence_length);
+      read.abundance = fastx_get_abundance(handle);
+
+      if (handle->is_fastq)
+        {
+          read.quality.assign(fastx_get_quality(handle), sequence_length);
+        }
+
+      return read;
+    };
+
+  progress_init("Reading input file", fastx_get_size(forward_handle));
+
+  int64_t kept = 0;
+  int64_t discarded = 0;
+  int64_t truncated = 0;
+
+  while (fastx_next(forward_handle, false, chrmap_no_change_vector.data()))
+    {
+      auto const left_read = snapshot_read(forward_handle);
+      auto const left_result = analyse(forward_handle, false);
+
+      struct read_snapshot right_read;
+      struct analysis_res right_result;
+
+      if (interleaved)
+        {
+          if (not fastx_next(forward_handle, false, chrmap_no_change_vector.data()))
+            {
+              fatal("Odd number of records in interleaved paired FASTQ input %s; expected R1/R2 entries", filename);
+            }
+        }
+      else if (not fastx_next(reverse_handle, false, chrmap_no_change_vector.data()))
+        {
+          fatal("More forward reads than reverse reads");
+        }
+
+      auto * const right_source = interleaved ? forward_handle : reverse_handle;
+      right_read = snapshot_read(right_source);
+      right_result = analyse(right_source, false);
+
+      bool pair_discarded = left_result.discarded or right_result.discarded;
+      auto const pair_ee = left_result.ee + right_result.ee;
+      auto const pair_length = left_result.length + right_result.length;
+
+      if ((not pair_discarded) and (not ee_thresholds_pass(pair_ee, pair_length)))
+        {
+          pair_discarded = true;
+        }
+
+      if (pair_discarded)
+        {
+          ++discarded;
+
+          if (opt_fastaout_discarded != nullptr)
+            {
+              fasta_print_general(fp_fastaout_discarded,
+                                  nullptr,
+                                  left_read.sequence.data() + left_result.start,
+                                  left_result.length,
+                                  left_read.header.data(),
+                                  static_cast<int>(left_read.header.size()),
+                                  left_read.abundance,
+                                  discarded,
+                                  left_result.ee,
+                                  -1,
+                                  -1,
+                                  nullptr,
+                                  0.0);
+            }
+
+          if (opt_fastqout_discarded != nullptr)
+            {
+              fastq_print_general(fp_fastqout_discarded,
+                                  left_read.sequence.data() + left_result.start,
+                                  left_result.length,
+                                  left_read.header.data(),
+                                  static_cast<int>(left_read.header.size()),
+                                  left_read.quality.data() + left_result.start,
+                                  left_read.abundance,
+                                  discarded,
+                                  left_result.ee);
+            }
+
+          if (opt_fastaout_discarded2 != nullptr)
+            {
+              fasta_print_general(fp_fastaout_discarded2,
+                                  nullptr,
+                                  right_read.sequence.data() + right_result.start,
+                                  right_result.length,
+                                  right_read.header.data(),
+                                  static_cast<int>(right_read.header.size()),
+                                  right_read.abundance,
+                                  discarded,
+                                  right_result.ee,
+                                  -1,
+                                  -1,
+                                  nullptr,
+                                  0.0);
+            }
+
+          if (opt_fastqout_discarded2 != nullptr)
+            {
+              fastq_print_general(fp_fastqout_discarded2,
+                                  right_read.sequence.data() + right_result.start,
+                                  right_result.length,
+                                  right_read.header.data(),
+                                  static_cast<int>(right_read.header.size()),
+                                  right_read.quality.data() + right_result.start,
+                                  right_read.abundance,
+                                  discarded,
+                                  right_result.ee);
+            }
+        }
+      else
+        {
+          ++kept;
+
+          if (left_result.truncated or right_result.truncated)
+            {
+              ++truncated;
+            }
+
+          if (opt_fastaout != nullptr)
+            {
+              fasta_print_general(fp_fastaout,
+                                  nullptr,
+                                  left_read.sequence.data() + left_result.start,
+                                  left_result.length,
+                                  left_read.header.data(),
+                                  static_cast<int>(left_read.header.size()),
+                                  left_read.abundance,
+                                  kept,
+                                  left_result.ee,
+                                  -1,
+                                  -1,
+                                  nullptr,
+                                  0.0);
+            }
+
+          if (opt_fastqout != nullptr)
+            {
+              fastq_print_general(fp_fastqout,
+                                  left_read.sequence.data() + left_result.start,
+                                  left_result.length,
+                                  left_read.header.data(),
+                                  static_cast<int>(left_read.header.size()),
+                                  left_read.quality.data() + left_result.start,
+                                  left_read.abundance,
+                                  kept,
+                                  left_result.ee);
+            }
+
+          if (opt_fastaout2 != nullptr)
+            {
+              fasta_print_general(fp_fastaout2,
+                                  nullptr,
+                                  right_read.sequence.data() + right_result.start,
+                                  right_result.length,
+                                  right_read.header.data(),
+                                  static_cast<int>(right_read.header.size()),
+                                  right_read.abundance,
+                                  kept,
+                                  right_result.ee,
+                                  -1,
+                                  -1,
+                                  nullptr,
+                                  0.0);
+            }
+
+          if (opt_fastqout2 != nullptr)
+            {
+              fastq_print_general(fp_fastqout2,
+                                  right_read.sequence.data() + right_result.start,
+                                  right_result.length,
+                                  right_read.header.data(),
+                                  static_cast<int>(right_read.header.size()),
+                                  right_read.quality.data() + right_result.start,
+                                  right_read.abundance,
+                                  kept,
+                                  right_result.ee);
+            }
+        }
+
+      progress_update(fastx_get_position(forward_handle));
+    }
+
+  progress_done();
+
+  if ((not interleaved) and
+      (reverse_handle != nullptr) and
+      fastx_next(reverse_handle, false, chrmap_no_change_vector.data()))
+    {
+      fatal("More reverse reads than forward reads");
+    }
+
+  if (not opt_quiet)
+    {
+      std::fprintf(stderr,
+              "%" PRId64 " sequences kept (of which %" PRId64 " truncated), %" PRId64 " sequences discarded.\n",
+              kept,
+              truncated,
+              discarded);
+    }
+
+  if (opt_log != nullptr)
+    {
+      std::fprintf(fp_log,
+              "%" PRId64 " sequences kept (of which %" PRId64 " truncated), %" PRId64 " sequences discarded.\n",
+              kept,
+              truncated,
+              discarded);
+    }
+
+  if (opt_fastaout != nullptr)
+    {
+      std::fclose(fp_fastaout);
+    }
+
+  if (opt_fastaout2 != nullptr)
+    {
+      std::fclose(fp_fastaout2);
+    }
+
+  if (opt_fastqout != nullptr)
+    {
+      std::fclose(fp_fastqout);
+    }
+
+  if (opt_fastqout2 != nullptr)
+    {
+      std::fclose(fp_fastqout2);
+    }
+
+  if (opt_fastaout_discarded != nullptr)
+    {
+      std::fclose(fp_fastaout_discarded);
+    }
+
+  if (opt_fastaout_discarded2 != nullptr)
+    {
+      std::fclose(fp_fastaout_discarded2);
+    }
+
+  if (opt_fastqout_discarded != nullptr)
+    {
+      std::fclose(fp_fastqout_discarded);
+    }
+
+  if (opt_fastqout_discarded2 != nullptr)
+    {
+      std::fclose(fp_fastqout_discarded2);
+    }
+
+  if (reverse_handle != nullptr)
+    {
+      fastx_close(reverse_handle);
+    }
+
+  fastx_close(forward_handle);
+}
+
+
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {
 
@@ -663,6 +1079,13 @@ auto fastq_filter(struct Parameters const & parameters) -> void
 {
   check_parameters(parameters);
   filter(true, parameters.opt_fastq_filter);
+}
+
+
+auto fastq_filter_paired_ext(struct Parameters const & parameters) -> void
+{
+  check_parameters(parameters);
+  filter_paired_ext_fastq(parameters.opt_fastq_filter, parameters.opt_interleaved);
 }
 
 
