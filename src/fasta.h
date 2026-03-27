@@ -58,18 +58,16 @@
 
 */
 
+#include <cstdint> // uint64_t
 #include <cstdio>  // std::FILE
-#include <cstdint>  // uint64_t
-
 
 /* fasta input */
 
 auto fasta_open_rest(fastx_handle input_handle) -> void;
-auto fasta_open(const char * filename) -> fastx_handle;
+auto fasta_open(const char *filename) -> fastx_handle;
 auto fasta_close(fastx_handle input_handle) -> void;
-auto fasta_next(fastx_handle input_handle,
-                bool truncateatspace,
-                const unsigned char * char_mapping) -> bool;
+auto fasta_next(fastx_handle input_handle, bool truncateatspace,
+                const unsigned char *char_mapping) -> bool;
 auto fasta_get_position(fastx_handle input_handle) -> uint64_t;
 auto fasta_get_size(fastx_handle input_handle) -> uint64_t;
 auto fasta_get_lineno(fastx_handle input_handle) -> uint64_t;
@@ -83,32 +81,19 @@ auto fasta_get_abundance_and_presence(fastx_handle input_handle) -> int64_t;
 
 /* fasta output */
 
-auto fasta_print(std::FILE * output_handle,
-                 char const * header,
-                 char const * seq,
+auto fasta_print(std::FILE *output_handle, char const *header, char const *seq,
                  uint64_t len) -> void;
 
-auto fasta_print_general(std::FILE * output_handle,
-                         char const * prefix,
-                         char const * seq,
-                         int len,
-                         char const * header,
-                         int header_length,
-                         unsigned int abundance,
-                         int ordinal,
-                         double expected_error,
-                         int clustersize,
-                         int clusterid,
-                         char const * score_name,
-                         double score) -> void;
+auto fasta_print_general(std::FILE *output_handle, char const *prefix,
+                         char const *seq, int len, char const *header,
+                         int header_length, unsigned int abundance, int ordinal,
+                         double expected_error, int clustersize, int clusterid,
+                         char const *score_name, double score) -> void;
 
-auto fasta_print_db(std::FILE * output_handle,
-                    uint64_t seqno) -> void;
+auto fasta_print_db(std::FILE *output_handle, uint64_t seqno) -> void;
 
-auto fasta_print_db_relabel(std::FILE * output_handle,
-                            uint64_t seqno,
+auto fasta_print_db_relabel(std::FILE *output_handle, uint64_t seqno,
                             int ordinal) -> void;
 
-auto fasta_print_db_relabel(std::FILE * output_handle,
-                            uint64_t seqno,
+auto fasta_print_db_relabel(std::FILE *output_handle, uint64_t seqno,
                             std::size_t ordinal) -> void;

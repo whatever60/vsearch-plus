@@ -58,9 +58,8 @@
 
 */
 
-#include <cstdint>  // uint64_t
-#include <cstdio>   // std::FILE, std::size_t
-
+#include <cstdint> // uint64_t
+#include <cstdio>  // std::FILE, std::size_t
 
 #ifdef _WIN32
 using xstat_t = struct __stat64;
@@ -71,26 +70,26 @@ using xstat_t = struct stat;
 auto arch_get_memused() -> uint64_t;
 auto arch_get_memtotal() -> uint64_t;
 auto arch_get_cores() -> long;
-auto arch_get_user_system_time(double * user_time, double * system_time) -> void;
+auto arch_get_user_system_time(double *user_time, double *system_time) -> void;
 auto arch_srandom() -> void;
 auto arch_random() -> uint64_t;
 auto xmalloc(std::size_t size) -> void *;
-auto xrealloc(void * ptr, std::size_t size) -> void *;
-auto xfree(void * ptr) -> void;
+auto xrealloc(void *ptr, std::size_t size) -> void *;
+auto xfree(void *ptr) -> void;
 
-auto xfstat(int file_descriptor, xstat_t * buf) -> int;
-auto xstat(const char * path, xstat_t  * buf) -> int;
+auto xfstat(int file_descriptor, xstat_t *buf) -> int;
+auto xstat(const char *path, xstat_t *buf) -> int;
 auto xlseek(int file_descriptor, uint64_t offset, int whence) -> uint64_t;
-auto xftello(std::FILE * stream) -> uint64_t;
+auto xftello(std::FILE *stream) -> uint64_t;
 
-auto xopen_read(const char * path) -> int;
-auto xopen_write(const char * path) -> int;
+auto xopen_read(const char *path) -> int;
+auto xopen_write(const char *path) -> int;
 
-auto xstrcasestr(const char * haystack, const char * needle) -> const char *;
+auto xstrcasestr(const char *haystack, const char *needle) -> const char *;
 
-typedef void (* void_func_ptr)();
+typedef void (*void_func_ptr)();
 #ifdef _WIN32
-auto arch_dlsym(HMODULE handle, const char * symbol) -> void_func_ptr;
+auto arch_dlsym(HMODULE handle, const char *symbol) -> void_func_ptr;
 #else
-auto arch_dlsym(void * handle, const char * symbol) -> void_func_ptr;
+auto arch_dlsym(void *handle, const char *symbol) -> void_func_ptr;
 #endif

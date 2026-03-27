@@ -59,25 +59,27 @@
 */
 
 #include <cassert>
-#include <cinttypes>  // macros PRIu64 and PRId64
-#include <cstdint>  // int64_t, uint64_t
-#include <cstdio>  // std::fprintf
-
+#include <cinttypes> // macros PRIu64 and PRId64
+#include <cstdint>   // int64_t, uint64_t
+#include <cstdio>    // std::fprintf
 
 class Progress {
 public:
-  explicit Progress(char const * prompt, std::uint64_t const max_size,
-                    struct Parameters const & parameters)
-      : prompt_{prompt},
-        max_size_{max_size},
+  explicit Progress(char const *prompt, std::uint64_t const max_size,
+                    struct Parameters const &parameters)
+      : prompt_{prompt}, max_size_{max_size},
         stderr_is_tty_(parameters.opt_stderr_is_tty),
         is_quiet_(parameters.opt_quiet),
         no_progress_(parameters.opt_no_progress) {
     assert(prompt != nullptr);
     is_visible_ = check_if_visible();
-    if (is_quiet_) { return; }
+    if (is_quiet_) {
+      return;
+    }
     static_cast<void>(std::fprintf(stderr, "%s", prompt));
-    if (not is_visible_) { return; }
+    if (not is_visible_) {
+      return;
+    }
     static_cast<void>(std::fprintf(stderr, " %d%%", 0));
     if (max_size_ == 0) {
       static_cast<void>(std::fprintf(stderr, "  \r%s 0%%", prompt_));
@@ -87,18 +89,20 @@ public:
     next_threshold_ = calculate_next_threshold();
   }
 
-  Progress(Progress const &) = delete;  // copy constructor: no copies
-  auto operator=(Progress const &) -> Progress & = delete;  // assignment operator: no self-assignment
-  Progress(Progress&&) = delete;  // no move constructor
-  auto operator=(Progress&&) -> Progress & = delete; // no move assignment operator
-  
+  Progress(Progress const &) = delete; // copy constructor: no copies
+  auto operator=(Progress const &)
+      -> Progress & = delete;     // assignment operator: no self-assignment
+  Progress(Progress &&) = delete; // no move constructor
+  auto operator=(Progress &&)
+      -> Progress & = delete; // no move assignment operator
+
   auto update(std::uint64_t const counter) -> void {
     counter_ = counter;
-    if ((not is_visible_) or (counter_ < next_threshold_)) { return; }
+    if ((not is_visible_) or (counter_ < next_threshold_)) {
+      return;
+    }
     current_percentage_ = calculate_percentage();
-    static_cast<void>(std::fprintf(stderr,
-                                   "  \r%s %" PRIu64 "%%",
-                                   prompt_,
+    static_cast<void>(std::fprintf(stderr, "  \r%s %" PRIu64 "%%", prompt_,
                                    current_percentage_));
     next_threshold_ = calculate_next_threshold();
   };
@@ -108,46 +112,46 @@ public:
     update(counter_);
   }
 
-  ~Progress() {
-    done();
-  }
+  ~Progress() { done(); }
 
 private:
   static constexpr auto one_hundred_percent = 100UL;
 
   // Construction-time parameters
-  char const * prompt_ {};
-  std::uint64_t max_size_ {};
-  bool stderr_is_tty_ {};
-  bool is_quiet_ {};
-  bool no_progress_ {};
+  char const *prompt_{};
+  std::uint64_t max_size_{};
+  bool stderr_is_tty_{};
+  bool is_quiet_{};
+  bool no_progress_{};
 
   // Internal parameters
-  std::uint64_t counter_ {};
-  std::uint64_t current_percentage_ {};  // integer, and not a double
-  std::uint64_t next_threshold_ {};
-  bool is_visible_ {};
-  
+  std::uint64_t counter_{};
+  std::uint64_t current_percentage_{}; // integer, and not a double
+  std::uint64_t next_threshold_{};
+  bool is_visible_{};
+
   // Helper functions
   auto check_if_visible() const -> bool {
-    return (stderr_is_tty_)
-      and (not is_quiet_)
-      and (not no_progress_);
+    return (stderr_is_tty_) and (not is_quiet_) and (not no_progress_);
   };
 
   auto calculate_percentage() const -> std::uint64_t {
-    if (max_size_ == 0) { return 0; }  // when reading from a pipe
+    if (max_size_ == 0) {
+      return 0;
+    } // when reading from a pipe
     return counter_ * one_hundred_percent / max_size_;
   };
 
   auto calculate_next_threshold() const -> std::uint64_t {
     static constexpr auto nighty_nine_percent = 99UL;
     return (((current_percentage_ + 1) * max_size_) + nighty_nine_percent) /
-      one_hundred_percent;
+           one_hundred_percent;
   };
 
   auto done() const -> void {
-    if (is_quiet_) { return; }
+    if (is_quiet_) {
+      return;
+    }
     if (is_visible_) {
       static_cast<void>(std::fprintf(stderr, "  \r%s", prompt_));
     }

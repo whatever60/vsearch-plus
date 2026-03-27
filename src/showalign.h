@@ -59,31 +59,18 @@
 */
 
 #include "utils/span.hpp"
-#include <cstdint>  // int64_t
+#include <cstdint> // int64_t
 #include <cstdio>  // std::FILE
 #include <vector>
 
-
-auto get_alignment_qrow(Span<char> seq_view,
-                        Span<char> cigar_view,
+auto get_alignment_qrow(Span<char> seq_view, Span<char> cigar_view,
                         int alignlen) -> std::vector<char>;
 
-auto get_alignment_trow(Span<char> seq_view,
-                        Span<char> cigar_view,
+auto get_alignment_trow(Span<char> seq_view, Span<char> cigar_view,
                         int alignlen) -> std::vector<char>;
 
-auto align_show(std::FILE * output_handle,
-                char const * seq1,
-                int64_t seq1len,
-                int64_t seq1off,
-                char const * seq1name,
-                char const * seq2,
-                int64_t seq2len,
-                int64_t seq2off,
-                char const * seq2name,
-                char const * cigar,
-                int64_t cigarlen,
-                int numwidth,
-                int namewidth,
-                int alignwidth,
-                int strand) -> void;
+auto align_show(std::FILE *output_handle, char const *seq1, int64_t seq1len,
+                int64_t seq1off, char const *seq1name, char const *seq2,
+                int64_t seq2len, int64_t seq2off, char const *seq2name,
+                char const *cigar, int64_t cigarlen, int numwidth,
+                int namewidth, int alignwidth, int strand) -> void;

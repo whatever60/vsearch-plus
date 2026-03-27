@@ -58,52 +58,46 @@
 
 */
 
-#include "vsearch.h"
 #include "bitmap.h"
+#include "vsearch.h"
 #include <cstring> // std::memset
 
-
-auto bitmap_init(unsigned int const size) -> struct bitmap_s *
-{
+auto bitmap_init(unsigned int const size) -> struct bitmap_s * {
   constexpr auto divider = 8U;
   constexpr auto padding = divider - 1U;
   const auto minimal_size = (size + padding) / divider;
-  auto * a_bitmap = static_cast<struct bitmap_s *>(xmalloc(sizeof(struct bitmap_s)));
+  auto *a_bitmap =
+      static_cast<struct bitmap_s *>(xmalloc(sizeof(struct bitmap_s)));
   a_bitmap->size = size;
   a_bitmap->bitmap = static_cast<unsigned char *>(xmalloc(minimal_size));
   return a_bitmap;
 }
 
-
-auto bitmap_get(struct bitmap_s * a_bitmap, unsigned int const seed_value) -> unsigned char
-{
+auto bitmap_get(struct bitmap_s *a_bitmap, unsigned int const seed_value)
+    -> unsigned char {
   constexpr auto mask_111 = 7U;
-  constexpr auto divider = 3U;  // divide by 8
-  return (a_bitmap->bitmap[seed_value >> divider] >> (seed_value & mask_111)) & 1U;
+  constexpr auto divider = 3U; // divide by 8
+  return (a_bitmap->bitmap[seed_value >> divider] >> (seed_value & mask_111)) &
+         1U;
 }
 
-
-auto bitmap_reset_all(struct bitmap_s * a_bitmap) -> void
-{
+auto bitmap_reset_all(struct bitmap_s *a_bitmap) -> void {
   constexpr auto n_bits_in_a_byte = 8U;
-  const auto size_in_bytes = (a_bitmap->size + n_bits_in_a_byte - 1) / n_bits_in_a_byte;
+  const auto size_in_bytes =
+      (a_bitmap->size + n_bits_in_a_byte - 1) / n_bits_in_a_byte;
   std::memset(a_bitmap->bitmap, 0, size_in_bytes);
 }
 
-
-auto bitmap_set(struct bitmap_s * a_bitmap, unsigned int const seed_value) -> void
-{
+auto bitmap_set(struct bitmap_s *a_bitmap, unsigned int const seed_value)
+    -> void {
   constexpr auto mask_111 = 7U;
-  constexpr auto divider = 3U;  // divide by 8
+  constexpr auto divider = 3U; // divide by 8
   a_bitmap->bitmap[seed_value >> divider] |= 1U << (seed_value & mask_111);
 }
 
-
-auto bitmap_free(struct bitmap_s * a_bitmap) -> void
-{
-  if (a_bitmap->bitmap != nullptr)
-    {
-      xfree(a_bitmap->bitmap);
-    }
+auto bitmap_free(struct bitmap_s *a_bitmap) -> void {
+  if (a_bitmap->bitmap != nullptr) {
+    xfree(a_bitmap->bitmap);
+  }
   xfree(a_bitmap);
 }

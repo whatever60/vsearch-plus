@@ -59,24 +59,23 @@
 */
 
 #include "bitmap.h"
+#include <cstdint> // uint64_t
 #include <cstdio>  // std::FILE
-#include <cstdint>  // uint64_t
-
 
 struct uhandle_s;
 
-extern unsigned int * kmercount; /* number of matching seqnos for each kmer */
-extern uint64_t * kmerhash;  /* index into the list below for each kmer */
-extern unsigned int * kmerindex; /* the list of matching seqnos for kmers */
-extern struct bitmap_s * * kmerbitmap;
-extern unsigned int * dbindex_map;
+extern unsigned int *kmercount; /* number of matching seqnos for each kmer */
+extern uint64_t *kmerhash;      /* index into the list below for each kmer */
+extern unsigned int *kmerindex; /* the list of matching seqnos for kmers */
+extern struct bitmap_s **kmerbitmap;
+extern unsigned int *dbindex_map;
 extern unsigned int dbindex_count;
 extern unsigned int kmerhashsize;
 extern uint64_t kmerindexsize;
-extern uhandle_s * dbindex_uh;
+extern uhandle_s *dbindex_uh;
 
-
-auto fprint_kmer(std::FILE * output_handle, unsigned int kmer_length, uint64_t kmer) -> void;
+auto fprint_kmer(std::FILE *output_handle, unsigned int kmer_length,
+                 uint64_t kmer) -> void;
 
 auto dbindex_prepare(int use_bitmap, int seqmask) -> void;
 

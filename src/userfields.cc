@@ -59,119 +59,85 @@
 */
 
 #include "vsearch.h"
-#include <algorithm>  // std::count
-#include <cstdint>  // uint64_t
-#include <cstring>  // std::strcmp, std::strchr, std::strlen
+#include <algorithm> // std::count
+#include <cstdint>   // uint64_t
+#include <cstring>   // std::strcmp, std::strchr, std::strlen
 
-
-// refactoring: C++11 std::array does not allow conversion from litteral string to char *
-static const char * userfields_names[] =
-  {
+// refactoring: C++11 std::array does not allow conversion from litteral string
+// to char *
+static const char *userfields_names[] = {
     "query",  // 0
     "target", // 1
     "evalue", // 2
     "id",     // 3
-    "pctpv",
-    "pctgaps",
-    "pairs",
-    "gaps",
-    "qlo",
-    "qhi",
-    "tlo",
-    "thi",
-    "pv",
-    "ql",
-    "tl",
-    "qs",
-    "ts",
-    "alnlen",
-    "opens",
-    "exts",
-    "raw",
-    "bits",
-    "aln",
-    "caln",
-    "qstrand",
-    "tstrand",
-    "qrow",
-    "trow",
-    "qframe",
-    "tframe",
-    "mism",
-    "ids",
-    "qcov",
-    "tcov",   // 33
-    "id0",
-    "id1",
-    "id2",
-    "id3",
-    "id4",    // 38
-    "qilo",   // 39
-    "qihi",
-    "tilo",
-    "tihi",   // 42
-    nullptr
-  };
+    "pctpv",  "pctgaps", "pairs", "gaps", "qlo",     "qhi",     "tlo",   "thi",
+    "pv",     "ql",      "tl",    "qs",   "ts",      "alnlen",  "opens", "exts",
+    "raw",    "bits",    "aln",   "caln", "qstrand", "tstrand", "qrow",  "trow",
+    "qframe", "tframe",  "mism",  "ids",  "qcov",
+    "tcov", // 33
+    "id0",    "id1",     "id2",   "id3",
+    "id4",  // 38
+    "qilo", // 39
+    "qihi",   "tilo",
+    "tihi", // 42
+    nullptr};
 
-int * userfields_requested = nullptr;
+int *userfields_requested = nullptr;
 int userfields_requested_count = 0;
 
-
-auto parse_userfields_arg(char const * arg) -> int
-{
+auto parse_userfields_arg(char const *arg) -> int {
   // Parses the userfields option argument, e.g. query+target+id+alnlen+mism
   // and returns 1 if it is ok or 0 if not.
   static constexpr auto separator = '+';
-  char const * ptr = arg;
-  char const * end_of_string = ptr + std::strlen(ptr); // pointer to end of string
+  char const *ptr = arg;
+  char const *end_of_string =
+      ptr + std::strlen(ptr); // pointer to end of string
 
   userfields_requested_count = std::count(ptr, end_of_string, separator) + 1;
 
-  userfields_requested = static_cast<int *>(xmalloc(sizeof(int) * (uint64_t) userfields_requested_count));
+  userfields_requested = static_cast<int *>(
+      xmalloc(sizeof(int) * (uint64_t)userfields_requested_count));
 
-  ptr = arg;  // reset to the start of the string
+  ptr = arg; // reset to the start of the string
 
-  char const * next_separator = nullptr;
+  char const *next_separator = nullptr;
 
   auto nth_field = 0;
 
-  while (true)
-    {
-      next_separator = std::strchr(ptr, separator);
-      if (next_separator == nullptr)
-        {
-          next_separator = end_of_string;
-        }
-
-      auto const field_length = static_cast<uint64_t>(next_separator - ptr);
-
-      char ** valid_userfield = (char **) userfields_names;
-
-      while (*valid_userfield != nullptr)
-        {
-          if ((std::strncmp(ptr, *valid_userfield, field_length) == 0) and (std::strlen(*valid_userfield) == field_length))
-            {
-              break;
-            }
-          ++valid_userfield;
-        }
-
-      if (*valid_userfield == nullptr)
-        {    // reached end of list -> unrecognized field
-          return 0; // bad argument
-        }
-
-      auto const nth_valid_userfield = static_cast<int>((((const char **) valid_userfield) - userfields_names));
-      userfields_requested[nth_field] = nth_valid_userfield;
-      ++nth_field;
-
-      ptr = next_separator;
-
-      if (ptr == end_of_string)
-        {  // reached end of argument
-          return 1;
-        }
-
-      ++ptr;
+  while (true) {
+    next_separator = std::strchr(ptr, separator);
+    if (next_separator == nullptr) {
+      next_separator = end_of_string;
     }
+
+    auto const field_length = static_cast<uint64_t>(next_separator - ptr);
+
+    char **valid_userfield = (char **)userfields_names;
+
+    while (*valid_userfield != nullptr) {
+      if ((std::strncmp(ptr, *valid_userfield, field_length) == 0) and
+          (std::strlen(*valid_userfield) == field_length)) {
+        break;
+      }
+      ++valid_userfield;
+    }
+
+    if (*valid_userfield ==
+        nullptr) { // reached end of list -> unrecognized field
+      return 0;    // bad argument
+    }
+
+    auto const nth_valid_userfield =
+        static_cast<int>((((const char **)valid_userfield) - userfields_names));
+    userfields_requested[nth_field] = nth_valid_userfield;
+    ++nth_field;
+
+    ptr = next_separator;
+
+    if (ptr == end_of_string) { // reached end of argument
+      return 1;
+    }
+
+    ++ptr;
+  }
 }

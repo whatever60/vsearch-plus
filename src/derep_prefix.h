@@ -58,4 +58,4 @@
 
 */
 
-auto derep_prefix(struct Parameters const & parameters) -> void;
+auto derep_prefix(struct Parameters const &parameters) -> void;

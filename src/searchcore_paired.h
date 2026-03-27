@@ -27,8 +27,7 @@
 struct uhandle_s;
 struct minheap_s;
 
-struct record_paired_s
-{
+struct record_paired_s {
   std::string header;
   std::string qsequence_r1;
   std::string qsequence_r2;
@@ -36,8 +35,7 @@ struct record_paired_s
   int64_t first_seen = 0;
 };
 
-struct align_stats_paired_s
-{
+struct align_stats_paired_s {
   int matches = 0;
   int mismatches = 0;
   int nwgaps = 0;
@@ -56,8 +54,7 @@ struct align_stats_paired_s
   std::string nwalignment;
 };
 
-struct hit_paired_s
-{
+struct hit_paired_s {
   int target = -1;
   int strand = 0;
   unsigned int count = 0;
@@ -79,21 +76,18 @@ struct hit_paired_s
   double mid = 0.0;
 };
 
-struct kmer_index_paired_s
-{
+struct kmer_index_paired_s {
   std::unordered_map<unsigned int, std::vector<int>> r1_postings;
   std::unordered_map<unsigned int, std::vector<int>> r2_postings;
 };
 
-struct query_search_paired_s
-{
+struct query_search_paired_s {
   std::vector<unsigned int> target_kmer_scores;
   unsigned int qk_r1 = 0U;
   unsigned int qk_r2 = 0U;
 };
 
-struct searchinfo_s_paired
-{
+struct searchinfo_s_paired {
   int query_no = 0;
   int strand = 0;
   int64_t qsize = 0;
@@ -104,20 +98,20 @@ struct searchinfo_s_paired
   int qseqlen_r2 = 0;
   std::vector<char> qsequence_r1_v;
   std::vector<char> qsequence_r2_v;
-  char * qsequence_r1 = nullptr;
-  char * qsequence_r2 = nullptr;
+  char *qsequence_r1 = nullptr;
+  char *qsequence_r2 = nullptr;
 
   unsigned int kmersamplecount_r1 = 0;
   unsigned int kmersamplecount_r2 = 0;
-  unsigned int const * kmersample_r1 = nullptr;
-  unsigned int const * kmersample_r2 = nullptr;
+  unsigned int const *kmersample_r1 = nullptr;
+  unsigned int const *kmersample_r2 = nullptr;
 
   std::vector<unsigned short> kmers_v;
-  unsigned short * kmers = nullptr;
+  unsigned short *kmers = nullptr;
 
   std::size_t target_count = 0U;
-  kmer_index_paired_s const * target_kmer_index = nullptr;
-  std::vector<unsigned int> const * target_lengths = nullptr;
+  kmer_index_paired_s const *target_kmer_index = nullptr;
+  std::vector<unsigned int> const *target_lengths = nullptr;
 
   std::vector<hit_paired_s> hits;
   int hit_count = 0;
@@ -126,18 +120,18 @@ struct searchinfo_s_paired
   int rejects = 0;
   int finalized = 0;
 
-  struct uhandle_s * uh = nullptr;
-  struct minheap_s * m = nullptr;
+  struct uhandle_s *uh = nullptr;
+  struct minheap_s *m = nullptr;
 };
 
-auto search_topscores_paired(searchinfo_s_paired * searchinfo,
-                             int wordlength) -> void;
+auto search_topscores_paired(searchinfo_s_paired *searchinfo, int wordlength)
+    -> void;
 
-auto search_onequery_paired(searchinfo_s_paired * searchinfo,
-                            int seqmask) -> void;
+auto search_onequery_paired(searchinfo_s_paired *searchinfo, int seqmask)
+    -> void;
 
-auto search_joinhits_paired(searchinfo_s_paired * si_plus,
-                            searchinfo_s_paired * si_minus,
-                            std::vector<hit_paired_s> & hits) -> void;
+auto search_joinhits_paired(searchinfo_s_paired *si_plus,
+                            searchinfo_s_paired *si_minus,
+                            std::vector<hit_paired_s> &hits) -> void;
 
 #endif

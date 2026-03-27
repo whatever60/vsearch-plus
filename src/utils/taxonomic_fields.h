@@ -60,7 +60,6 @@
 
 #include <array>
 
-
 /* shorthands for nine taxonomic levels
    d domain
    k kingdom
@@ -74,4 +73,6 @@
 */
 
 constexpr auto tax_levels = 9;
-constexpr std::array<char, tax_levels> taxonomic_fields = {'d', 'k', 'p', 'c', 'o', 'f', 'g', 's', 't'};  // refactoring C++17: inline constexpr
+constexpr std::array<char, tax_levels> taxonomic_fields = {
+    'd', 'k', 'p', 'c', 'o',
+    'f', 'g', 's', 't'}; // refactoring C++17: inline constexpr

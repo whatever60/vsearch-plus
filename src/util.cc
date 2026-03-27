@@ -58,86 +58,83 @@
 
 */
 
-#include "vsearch.h"
 #include "city.h"
 #include "md5.h"
 #include "utils/fatal.hpp"
 #include "utils/maps.hpp"
+#include "vsearch.h"
 #include <cassert>
-#include <cinttypes>  // macros PRIu64 and PRId64
-#include <cstdarg>  // va_list
-#include <cstdint>  // int64_t, uint64_t
-#include <cstdio>  // std::FILE, std::fprintf, std::fclose, std::size_t, std::vsnprintf, std::fopen
+#include <cinttypes> // macros PRIu64 and PRId64
+#include <cstdarg>   // va_list
+#include <cstdint>   // int64_t, uint64_t
+#include <cstdio> // std::FILE, std::fprintf, std::fclose, std::size_t, std::vsnprintf, std::fopen
 #include <cstdlib>  // std::exit, EXIT_FAILURE, RAND_MAX
 #include <cstring>  // std::strlen, std::strcmp, std::strcpy, std::strchr
-#include <ctime>  // timeval, gettimeofday
-#include <iterator>  // std::next
+#include <ctime>    // timeval, gettimeofday
+#include <iterator> // std::next
 #include <limits>
 #include <vector>
 
-
 constexpr auto one_hundred_percent = 100UL;
 constexpr auto nighty_nine_percent = 99UL;
-static const char * progress_prompt;
+static const char *progress_prompt;
 static uint64_t progress_next;
 static uint64_t progress_size;
 static uint64_t progress_pct;
 static bool progress_show;
 
-
-// refactoring: make a progress object, with an .update() method and automatic closure?
-auto progress_init(char const * prompt, uint64_t const size) -> void
-{
-  progress_show = (isatty(fileno(stderr)) != 0) and (not opt_quiet) and (not opt_no_progress);
+// refactoring: make a progress object, with an .update() method and automatic
+// closure?
+auto progress_init(char const *prompt, uint64_t const size) -> void {
+  progress_show = (isatty(fileno(stderr)) != 0) and (not opt_quiet) and
+                  (not opt_no_progress);
   progress_prompt = prompt;
   progress_size = size;
   progress_pct = 0;
-  progress_next = (((progress_pct + 1) * progress_size) + nighty_nine_percent) / one_hundred_percent;
+  progress_next = (((progress_pct + 1) * progress_size) + nighty_nine_percent) /
+                  one_hundred_percent;
 
-  if (opt_quiet) { return; }
+  if (opt_quiet) {
+    return;
+  }
   std::fprintf(stderr, "%s", prompt);
-  if (not progress_show) { return; }
+  if (not progress_show) {
+    return;
+  }
   std::fprintf(stderr, " %d%%", 0);
 }
 
-
-auto progress_update(uint64_t const progress) -> void
-{
-  if ((progress < progress_next) or not progress_show) { return; }
+auto progress_update(uint64_t const progress) -> void {
+  if ((progress < progress_next) or not progress_show) {
+    return;
+  }
   if (progress_size == 0) {
     std::fprintf(stderr, "  \r%s 0%%", progress_prompt);
     return;
   }
   progress_pct = one_hundred_percent * progress / progress_size;
-  std::fprintf(stderr,
-          "  \r%s %" PRIu64 "%%",
-          progress_prompt,
-          progress_pct);
-  progress_next = (((progress_pct + 1) * progress_size) + nighty_nine_percent) / one_hundred_percent;
+  std::fprintf(stderr, "  \r%s %" PRIu64 "%%", progress_prompt, progress_pct);
+  progress_next = (((progress_pct + 1) * progress_size) + nighty_nine_percent) /
+                  one_hundred_percent;
 }
 
-
-auto progress_done() -> void
-{
-  if (opt_quiet) { return; }
-  if (progress_show)
-    {
-      std::fprintf(stderr, "  \r%s", progress_prompt);
-    }
+auto progress_done() -> void {
+  if (opt_quiet) {
+    return;
+  }
+  if (progress_show) {
+    std::fprintf(stderr, "  \r%s", progress_prompt);
+  }
   std::fprintf(stderr, " %lu%%\n", one_hundred_percent);
 }
 
-
-auto xstrdup(char const * src) -> char *
-{
+auto xstrdup(char const *src) -> char * {
   auto const len = std::strlen(src);
-  auto * dest = static_cast<char *>(xmalloc(len + 1));
+  auto *dest = static_cast<char *>(xmalloc(len + 1));
   return std::strcpy(dest, src);
 }
 
-
-auto xsprintf(char * * ret, char const * format, ...) -> int
-{
+auto xsprintf(char **ret, char const *format, ...) -> int {
   // refactoring: build string with std::string?
   // refactoring: C variadic function, replace with template variadic function?
   // Only used with one or two extra arguments, it could be a simple overload
@@ -145,15 +142,13 @@ auto xsprintf(char * * ret, char const * format, ...) -> int
   va_start(args, format);
   auto len = std::vsnprintf(nullptr, 0, format, args);
   va_end(args);
-  if (len < 0)
-    {
-      fatal("Error with vsnprintf in xsprintf");
-    }
-  auto * buffer = static_cast<char *>(xmalloc(len + 1));
-  if (buffer == nullptr)
-    {
-      fatal("Out of memory");
-    }
+  if (len < 0) {
+    fatal("Error with vsnprintf in xsprintf");
+  }
+  auto *buffer = static_cast<char *>(xmalloc(len + 1));
+  if (buffer == nullptr) {
+    fatal("Out of memory");
+  }
   va_start(args, format);
   len = std::vsnprintf(buffer, len + 1, format, args);
   va_end(args);
@@ -161,21 +156,15 @@ auto xsprintf(char * * ret, char const * format, ...) -> int
   return len;
 }
 
-
-auto hash_cityhash64(char const * sequence, uint64_t const length) -> uint64_t
-{
+auto hash_cityhash64(char const *sequence, uint64_t const length) -> uint64_t {
   return CityHash64(sequence, length);
 }
 
-
-auto hash_cityhash128(char const * sequence, uint64_t const length) -> uint128
-{
+auto hash_cityhash128(char const *sequence, uint64_t const length) -> uint128 {
   return CityHash128(sequence, length);
 }
 
-
-auto show_rusage() -> void
-{
+auto show_rusage() -> void {
 #ifdef SHOW_RUSAGE
   static constexpr auto a_megabyte = 1024.0 * 1024.0;
   double user_time = 0.0;
@@ -186,24 +175,23 @@ auto show_rusage() -> void
   double const megabytes = arch_get_memused() / a_megabyte;
 
   std::fprintf(stderr, "Time: %.3fs (user) %.3fs (sys) Memory: %.0lfMB\n",
-          user_time, system_time, megabytes);
+               user_time, system_time, megabytes);
 
   if (opt_log)
     std::fprintf(fp_log, "Time: %.3fs (user) %.3fs (sys) Memory: %.0lfMB\n",
-            user_time, system_time, megabytes);
+                 user_time, system_time, megabytes);
 #endif
 }
-
 
 // refactoring: create reverse_complement.hpp, progressive migration
 // write overloads for span?
 // assert(destination.size() > source.size());
 // std::reverse_copy(source.begin(), source.end(), destination.begin());
 // auto complement = [](char nucleotide) -> char { ... };
-// std::transform(destination.begin(), destination.end(), destination.begin(), complement)
-// destination[length] = '\0';
-auto reverse_complement(char * rc_seq, char const * seq, int64_t const len) -> void
-{
+// std::transform(destination.begin(), destination.end(), destination.begin(),
+// complement) destination[length] = '\0';
+auto reverse_complement(char *rc_seq, char const *seq, int64_t const len)
+    -> void {
   /* Write the reverse complementary sequence to rc_seq.
      The memory for rc_seq must be long enough for the rc_seq of the sequence
      (identical to the length of seq + 1). */
@@ -216,15 +204,9 @@ auto reverse_complement(char * rc_seq, char const * seq, int64_t const len) -> v
   *std::next(rc_seq, len) = '\0';
 }
 
+auto random_init() -> void { arch_srandom(); }
 
-auto random_init() -> void
-{
-  arch_srandom();
-}
-
-
-auto random_int(int64_t const upper_limit) -> int64_t
-{
+auto random_int(int64_t const upper_limit) -> int64_t {
   /*
     Generate a random integer in the range 0 to n-1, inclusive.
     n must be > 0
@@ -237,16 +219,13 @@ auto random_int(int64_t const upper_limit) -> int64_t
   int64_t const random_max = RAND_MAX;
   int64_t const limit = random_max - ((random_max + 1) % upper_limit);
   auto random_value = static_cast<int64_t>(arch_random());
-  while (random_value > limit)
-    {
-      random_value = static_cast<int64_t>(arch_random());
-    }
+  while (random_value > limit) {
+    random_value = static_cast<int64_t>(arch_random());
+  }
   return random_value % upper_limit;
 }
 
-
-auto random_ulong(uint64_t const upper_limit) -> uint64_t
-{
+auto random_ulong(uint64_t const upper_limit) -> uint64_t {
   /*
     Generate a random integer in the range 0 to n-1, inclusive,
     n must be > 0
@@ -256,65 +235,60 @@ auto random_ulong(uint64_t const upper_limit) -> uint64_t
   static constexpr auto shift_32_bits = 32U;
   static constexpr auto shift_48_bits = 48U;
   auto const random_max = std::numeric_limits<uint64_t>::max();
-  auto const limit = random_max - ((random_max - upper_limit + 1) % upper_limit);
-  auto random_value = ((arch_random() << shift_48_bits) ^ (arch_random() << shift_32_bits) ^
-                       (arch_random() << shift_16_bits) ^ (arch_random()));
-  while (random_value > limit)
-    {
-      random_value = ((arch_random() << shift_48_bits) ^ (arch_random() << shift_32_bits) ^
-                      (arch_random() << shift_16_bits) ^ (arch_random()));
-    }
+  auto const limit =
+      random_max - ((random_max - upper_limit + 1) % upper_limit);
+  auto random_value =
+      ((arch_random() << shift_48_bits) ^ (arch_random() << shift_32_bits) ^
+       (arch_random() << shift_16_bits) ^ (arch_random()));
+  while (random_value > limit) {
+    random_value =
+        ((arch_random() << shift_48_bits) ^ (arch_random() << shift_32_bits) ^
+         (arch_random() << shift_16_bits) ^ (arch_random()));
+  }
   return random_value % upper_limit;
 }
 
-
-auto string_normalize(char * normalized, char const * raw_seq, unsigned int const len) -> void
-{
+auto string_normalize(char *normalized, char const *raw_seq,
+                      unsigned int const len) -> void {
   /* convert string to upper case and replace U by T */
-  for (auto i = 0U; i < len; ++i)
-    {
-      auto const unsigned_char = static_cast<unsigned char>(*raw_seq);
-      auto const normalized_char = chrmap_normalize_vector[unsigned_char];
-      *normalized = static_cast<char>(normalized_char);
-      std::advance(normalized, 1);
-      std::advance(raw_seq, 1);
-    }
+  for (auto i = 0U; i < len; ++i) {
+    auto const unsigned_char = static_cast<unsigned char>(*raw_seq);
+    auto const normalized_char = chrmap_normalize_vector[unsigned_char];
+    *normalized = static_cast<char>(normalized_char);
+    std::advance(normalized, 1);
+    std::advance(raw_seq, 1);
+  }
   *normalized = '\0';
 }
 
-
-auto SHA1(unsigned char const * data, unsigned long const len, unsigned char * digest) -> void
-{
-  if (digest == nullptr)
-    {
-      fatal("Error in computing SHA1 digest");
-    }
+auto SHA1(unsigned char const *data, unsigned long const len,
+          unsigned char *digest) -> void {
+  if (digest == nullptr) {
+    fatal("Error in computing SHA1 digest");
+  }
   SHA1_CTX a_context;
   SHA1_Init(&a_context);
   SHA1_Update(&a_context, data, len);
   SHA1_Final(&a_context, digest);
 }
 
-
-auto MD5(void * data, unsigned long const len, unsigned char * digest) -> void
-{
-  if (digest == nullptr)
-    {
-      fatal("Error in computing MD5 digest");
-    }
+auto MD5(void *data, unsigned long const len, unsigned char *digest) -> void {
+  if (digest == nullptr) {
+    fatal("Error in computing MD5 digest");
+  }
   MD5_CTX a_context;
   MD5_Init(&a_context);
   MD5_Update(&a_context, data, len);
   MD5_Final(digest, &a_context);
 }
 
-
 constexpr auto drop_lower_nibble = 4U;
 constexpr auto mask_upper_nibble = 15U;
-const std::vector<char> hexdigits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+const std::vector<char> hexdigits = {'0', '1', '2', '3', '4', '5', '6', '7',
+                                     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-auto get_hex_seq_digest_sha1(char * hex, char const * seq, int const seqlen) -> void
-{
+auto get_hex_seq_digest_sha1(char *hex, char const *seq, int const seqlen)
+    -> void {
   /* Save hexadecimal representation of the SHA1 hash of the sequence.
      The string array digest must be large enough (len_hex_dig_sha1).
      First normalize string by uppercasing it and replacing U's with T's. */
@@ -324,11 +298,10 @@ auto get_hex_seq_digest_sha1(char * hex, char const * seq, int const seqlen) -> 
 
   std::vector<unsigned char> digest(sha1_digest_length);
 
-  SHA1((const unsigned char *) normalized.data(),
-       static_cast<std::size_t>(seqlen),
-       digest.data());
+  SHA1((const unsigned char *)normalized.data(),
+       static_cast<std::size_t>(seqlen), digest.data());
 
-  for (auto const & element: digest) {
+  for (auto const &element : digest) {
     *hex = hexdigits[element >> drop_lower_nibble];
     std::advance(hex, 1);
     *hex = hexdigits[element & mask_upper_nibble];
@@ -337,9 +310,8 @@ auto get_hex_seq_digest_sha1(char * hex, char const * seq, int const seqlen) -> 
   *hex = '\0';
 }
 
-
-auto get_hex_seq_digest_md5(char * hex, char const * seq, int const seqlen) -> void
-{
+auto get_hex_seq_digest_md5(char *hex, char const *seq, int const seqlen)
+    -> void {
   /* Save hexadecimal representation of the MD5 hash of the sequence.
      The string array digest must be large enough (len_hex_dig_md5).
      First normalize string by uppercasing it and replacing U's with T's. */
@@ -351,7 +323,7 @@ auto get_hex_seq_digest_md5(char * hex, char const * seq, int const seqlen) -> v
 
   MD5(normalized.data(), static_cast<std::size_t>(seqlen), digest.data());
 
-  for (auto const & element: digest) {
+  for (auto const &element : digest) {
     *hex = hexdigits[element >> drop_lower_nibble];
     std::advance(hex, 1);
     *hex = hexdigits[element & mask_upper_nibble];
@@ -360,34 +332,28 @@ auto get_hex_seq_digest_md5(char * hex, char const * seq, int const seqlen) -> v
   *hex = '\0';
 }
 
-
-auto fprint_seq_digest_sha1(std::FILE * output_handle, char const * seq, int const seqlen) -> void
-{
+auto fprint_seq_digest_sha1(std::FILE *output_handle, char const *seq,
+                            int const seqlen) -> void {
   std::vector<char> hex_digest(len_hex_dig_sha1);
   get_hex_seq_digest_sha1(hex_digest.data(), seq, seqlen);
   std::fprintf(output_handle, "%s", hex_digest.data());
 }
 
-
-auto fprint_seq_digest_md5(std::FILE * output_handle, char const * seq, int const seqlen) -> void
-{
+auto fprint_seq_digest_md5(std::FILE *output_handle, char const *seq,
+                           int const seqlen) -> void {
   std::vector<char> hex_digest(len_hex_dig_md5);
   get_hex_seq_digest_md5(hex_digest.data(), seq, seqlen);
   std::fprintf(output_handle, "%s", hex_digest.data());
 }
 
-
-auto fopen_output(char const * filename) -> std::FILE *
-{
+auto fopen_output(char const *filename) -> std::FILE * {
   /* open the output stream given by filename, but use stdout if name is - */
-  if (std::strcmp(filename, "-") == 0)
-    {
-      auto const file_descriptor = dup(STDOUT_FILENO);
-      if (file_descriptor < 0)
-        {
-          return nullptr;
-        }
-      return fdopen(file_descriptor, "w");
+  if (std::strcmp(filename, "-") == 0) {
+    auto const file_descriptor = dup(STDOUT_FILENO);
+    if (file_descriptor < 0) {
+      return nullptr;
     }
+    return fdopen(file_descriptor, "w");
+  }
   return std::fopen(filename, "w");
 }

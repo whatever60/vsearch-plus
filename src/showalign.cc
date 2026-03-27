@@ -58,253 +58,220 @@
 
 */
 
-#include "vsearch.h"
 #include "utils/cigar.hpp"
 #include "utils/fatal.hpp"
 #include "utils/maps.hpp"
 #include "utils/span.hpp"
-#include <algorithm>  // std::copy, std::fill_n, std::min
+#include "vsearch.h"
+#include <algorithm> // std::copy, std::fill_n, std::min
 #include <cassert>
-#include <cinttypes>  // macros PRIu64 and PRId64
-#include <cstdint>  // int64_t
-#include <cstdio>  // std::FILE
-#include <cstring>  // std::strlen
+#include <cinttypes> // macros PRIu64 and PRId64
+#include <cstdint>   // int64_t
+#include <cstdio>    // std::FILE
+#include <cstring>   // std::strlen
 #include <iterator>  // std::next
 #include <vector>
-
 
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {
 
-  std::vector<char> q_line;  // query
-  std::vector<char> a_line;  // alignment symbols (|)
-  std::vector<char> d_line;  // target
+std::vector<char> q_line; // query
+std::vector<char> a_line; // alignment symbols (|)
+std::vector<char> d_line; // target
 
+enum struct Viewpoint : char { target, query };
 
-  enum struct Viewpoint : char {
-    target,
-    query
-  };
+struct Position {
+  int64_t line = 0;
+  int64_t query = 0;
+  int64_t target = 0;
+  int64_t query_start = 0;
+  int64_t target_start = 0;
+};
 
+struct Sequence {
+  char const *sequence = nullptr;
+  int64_t length = 0;
+  int64_t offset = 0;
+  char const *name = nullptr;
+};
 
-  struct Position {
-    int64_t line = 0;
-    int64_t query = 0;
-    int64_t target = 0;
-    int64_t query_start = 0;
-    int64_t target_start = 0;
-  };
+struct Alignment {
+  static constexpr auto poswidth_default = 3;
+  static constexpr auto headwidth_default = 5;
+  std::FILE *output_handle = nullptr;
+  Sequence query;
+  Sequence target;
+  int64_t width = 0;
+  int poswidth = poswidth_default;
+  int headwidth = headwidth_default;
+  bool is_reverse_strand = false;
+};
 
+auto get_aligment_symbol(char const query_nuc, char const target_nuc) -> char {
+  static constexpr auto is_N = 15U;
+  auto const query_coded = map_4bit(query_nuc);
+  auto const target_coded = map_4bit(target_nuc);
 
-  struct Sequence {
-    char const * sequence = nullptr;
-    int64_t length = 0;
-    int64_t offset = 0;
-    char const * name = nullptr;
-  };
+  if (opt_n_mismatch and ((query_coded == is_N) or (target_coded == is_N))) {
+    return ' '; // N are mismatches
+  }
+  if ((query_coded == target_coded) and not is_ambiguous_4bit(query_coded)) {
+    return '|'; // a perfect match
+  }
+  if ((query_coded & target_coded) != 0U) {
+    return '+'; // an equivalence (ambiguous nucleotides)
+  }
+  return ' ';
+}
 
+constexpr auto adapt_to_viewpoint(Viewpoint const viewpoint) noexcept
+    -> Operation {
+  // cigar operations are relative to target (see issue #618)
+  //  - D is a deletion in target, an insertion in query
+  //  - I is an insertion in target, a deletion in query
+  //
+  // Which operation is an insertion depends on viewpoint:
+  return (viewpoint == Viewpoint::target) ? Operation::insertion
+                                          : Operation::deletion;
+}
 
-  struct Alignment {
-    static constexpr auto poswidth_default = 3;
-    static constexpr auto headwidth_default = 5;
-    std::FILE * output_handle = nullptr;
-    Sequence query;
-    Sequence target;
-    int64_t width = 0;
-    int poswidth = poswidth_default;
-    int headwidth = headwidth_default;
-    bool is_reverse_strand = false;
-  };
+auto get_alignment_row(Span<char> const seq_view, Span<char> const cigar_view,
+                       int const alignlen, Operation const insertion_equivalent)
+    -> std::vector<char> {
+  std::vector<char> row(alignlen + 1);
+  auto cursor_src = size_t{0};
+  auto cursor_dest = size_t{0};
 
-
-  auto get_aligment_symbol(char const query_nuc, char const target_nuc) -> char {
-    static constexpr auto is_N = 15U;
-    auto const query_coded = map_4bit(query_nuc);
-    auto const target_coded = map_4bit(target_nuc);
-
-    if (opt_n_mismatch and ((query_coded == is_N) or (target_coded == is_N))) {
-      return ' ';  // N are mismatches
+  for (auto const &a_pair : parse_cigar_string(cigar_view)) {
+    auto const operation = a_pair.first;
+    auto const runlength = a_pair.second;
+    assert(static_cast<size_t>(runlength) < row.size() - cursor_dest);
+    if ((operation == Operation::match) or
+        (operation == insertion_equivalent)) {
+      auto const subsequence = seq_view.subspan(cursor_src, runlength);
+      std::copy(subsequence.cbegin(), subsequence.cend(), &row[cursor_dest]);
+      cursor_src += runlength;
+    } else {
+      // viewpoint_deletion = fill-in with gap symbols
+      std::fill_n(&row[cursor_dest], runlength, '-');
     }
-    if ((query_coded == target_coded) and not is_ambiguous_4bit(query_coded)) {
-      return '|';  // a perfect match
+    cursor_dest += runlength;
+  }
+
+  assert(row[cursor_dest] == '\0');
+  return row;
+}
+
+auto get_query_nucleotide(Alignment const &alignment, Position const &position)
+    -> char {
+  auto const nucleotide = *std::next(alignment.query.sequence, position.query);
+  if (alignment.is_reverse_strand) {
+    return map_complement(nucleotide);
+  }
+  return nucleotide;
+}
+
+auto get_target_nucleotide(Alignment const &alignment, Position const &position)
+    -> char {
+  return *std::next(alignment.target.sequence, position.target);
+}
+
+auto print_alignment_block(Alignment const &alignment, Position const &position)
+    -> void {
+  // current query and target starting and ending positions
+  auto const query_start =
+      std::min(position.query_start + 1, alignment.query.length);
+  auto const query_end =
+      alignment.is_reverse_strand ? position.query + 2 : position.query;
+  auto const target_start =
+      std::min(position.target_start + 1, alignment.target.length);
+  auto const target_end = position.target;
+
+  static_cast<void>(std::fprintf(
+      alignment.output_handle, "\n%*s %*" PRId64 " %c %s %" PRId64 "\n",
+      alignment.headwidth, alignment.query.name, alignment.poswidth,
+      query_start, alignment.is_reverse_strand ? '-' : '+', q_line.data(),
+      query_end));
+  static_cast<void>(std::fprintf(alignment.output_handle, "%*s %*s   %s\n",
+                                 alignment.headwidth, "", alignment.poswidth,
+                                 "", a_line.data()));
+  static_cast<void>(std::fprintf(
+      alignment.output_handle, "%*s %*" PRId64 " %c %s %" PRId64 "\n",
+      alignment.headwidth, alignment.target.name, alignment.poswidth,
+      target_start, '+', d_line.data(), target_end));
+}
+
+inline auto putop(Alignment const &alignment, Position &position,
+                  Operation const operation, int64_t const runlength) -> void {
+  int64_t const delta = alignment.is_reverse_strand ? -1 : +1;
+
+  for (auto count = runlength; count != 0; --count) {
+
+    if (position.line == 0) {
+      position.query_start = position.query;
+      position.target_start = position.target;
     }
-    if ((query_coded & target_coded) != 0U) {
-     return '+';  // an equivalence (ambiguous nucleotides)
-    }
-    return ' ';
-  }
 
+    auto const query_nuc = get_query_nucleotide(alignment, position);
+    auto const target_nuc = get_target_nucleotide(alignment, position);
 
-  constexpr
-  auto adapt_to_viewpoint(Viewpoint const viewpoint) noexcept -> Operation {
-    // cigar operations are relative to target (see issue #618)
-    //  - D is a deletion in target, an insertion in query
-    //  - I is an insertion in target, a deletion in query
-    //
-    // Which operation is an insertion depends on viewpoint:
-    return (viewpoint == Viewpoint::target) ? Operation::insertion : Operation::deletion;
-  }
+    switch (operation) {
+    case Operation::match:
+      position.query += delta;
+      position.target += 1;
+      q_line[position.line] = query_nuc;
+      a_line[position.line] = get_aligment_symbol(query_nuc, target_nuc);
+      d_line[position.line] = target_nuc;
+      ++position.line;
+      break;
 
+    case Operation::deletion: // gap in target (insertion in query)
+      position.query += delta;
+      q_line[position.line] = query_nuc;
+      a_line[position.line] = ' ';
+      d_line[position.line] = '-';
+      ++position.line;
+      break;
 
-  auto get_alignment_row(Span<char> const seq_view, Span<char> const cigar_view,
-                         int const alignlen,
-                         Operation const insertion_equivalent) -> std::vector<char> {
-    std::vector<char> row(alignlen + 1);
-    auto cursor_src = size_t{0};
-    auto cursor_dest = size_t{0};
-
-    for (auto const & a_pair: parse_cigar_string(cigar_view)) {
-      auto const operation = a_pair.first;
-      auto const runlength = a_pair.second;
-      assert(static_cast<size_t>(runlength) < row.size() - cursor_dest);
-      if ((operation == Operation::match) or
-          (operation == insertion_equivalent)) {
-        auto const subsequence = seq_view.subspan(cursor_src, runlength);
-        std::copy(subsequence.cbegin(), subsequence.cend(), &row[cursor_dest]);
-        cursor_src += runlength;
-      } else {
-        // viewpoint_deletion = fill-in with gap symbols
-        std::fill_n(&row[cursor_dest], runlength, '-');
-      }
-      cursor_dest += runlength;
+    case Operation::insertion: // insertion in target (gap in query)
+      position.target += 1;
+      q_line[position.line] = '-';
+      a_line[position.line] = ' ';
+      d_line[position.line] = target_nuc;
+      ++position.line;
+      break;
     }
 
-    assert(row[cursor_dest] == '\0');
-    return row;
-  }
-
-
-  auto get_query_nucleotide(Alignment const & alignment, Position const & position) -> char {
-    auto const nucleotide = *std::next(alignment.query.sequence, position.query);
-    if (alignment.is_reverse_strand) {
-      return map_complement(nucleotide);
-    }
-    return nucleotide;
-  }
-
-
-  auto get_target_nucleotide(Alignment const & alignment, Position const & position) -> char {
-    return *std::next(alignment.target.sequence, position.target);
-  }
-
-
-  auto print_alignment_block(Alignment const & alignment, Position const & position) -> void {
-    // current query and target starting and ending positions
-    auto const query_start = std::min(position.query_start + 1, alignment.query.length);
-    auto const query_end = alignment.is_reverse_strand ? position.query + 2 : position.query;
-    auto const target_start = std::min(position.target_start + 1, alignment.target.length);
-    auto const target_end = position.target;
-
-    static_cast<void>(
-    std::fprintf(alignment.output_handle,
-                 "\n%*s %*" PRId64 " %c %s %" PRId64 "\n",
-                 alignment.headwidth,
-                 alignment.query.name,
-                 alignment.poswidth,
-                 query_start,
-                 alignment.is_reverse_strand ? '-' : '+',
-                 q_line.data(),
-                 query_end));
-    static_cast<void>(
-    std::fprintf(alignment.output_handle,
-                 "%*s %*s   %s\n",
-                 alignment.headwidth,
-                 "",
-                 alignment.poswidth,
-                 "",
-                 a_line.data()));
-    static_cast<void>(
-    std::fprintf(alignment.output_handle,
-                 "%*s %*" PRId64 " %c %s %" PRId64 "\n",
-                 alignment.headwidth,
-                 alignment.target.name,
-                 alignment.poswidth,
-                 target_start,
-                 '+',
-                 d_line.data(),
-                 target_end));
-  }
-
-
-  inline auto putop(Alignment const & alignment, Position & position, Operation const operation, int64_t const runlength) -> void {
-    int64_t const delta = alignment.is_reverse_strand ? -1 : +1;
-
-    for (auto count = runlength; count != 0; --count) {
-
-      if (position.line == 0) {
-        position.query_start = position.query;
-        position.target_start = position.target;
-      }
-
-      auto const query_nuc = get_query_nucleotide(alignment, position);
-      auto const target_nuc = get_target_nucleotide(alignment, position);
-
-      switch (operation) {
-      case Operation::match:
-        position.query += delta;
-        position.target += 1;
-        q_line[position.line] = query_nuc;
-        a_line[position.line] = get_aligment_symbol(query_nuc, target_nuc);
-        d_line[position.line] = target_nuc;
-        ++position.line;
-        break;
-
-      case Operation::deletion:  // gap in target (insertion in query)
-        position.query += delta;
-        q_line[position.line] = query_nuc;
-        a_line[position.line] = ' ';
-        d_line[position.line] = '-';
-        ++position.line;
-        break;
-
-      case Operation::insertion:  // insertion in target (gap in query)
-        position.target += 1;
-        q_line[position.line] = '-';
-        a_line[position.line] = ' ';
-        d_line[position.line] = target_nuc;
-        ++position.line;
-        break;
-      }
-
-      if (position.line == alignment.width) {
-        // maximal alignment width is reached, print alignment block
-        q_line[position.line] = '\0';
-        a_line[position.line] = '\0';
-        d_line[position.line] = '\0';
-        print_alignment_block(alignment, position);
-        position.line = 0;  // needed to avoid out-of-bounds
-      }
+    if (position.line == alignment.width) {
+      // maximal alignment width is reached, print alignment block
+      q_line[position.line] = '\0';
+      a_line[position.line] = '\0';
+      d_line[position.line] = '\0';
+      print_alignment_block(alignment, position);
+      position.line = 0; // needed to avoid out-of-bounds
     }
   }
+}
 
+auto putop_final(Alignment const &alignment, Position const &position) -> void {
+  if (position.line == 0) {
+    return;
+  } // final block already printed
+  q_line[position.line] = '\0';
+  a_line[position.line] = '\0';
+  d_line[position.line] = '\0';
+  print_alignment_block(alignment, position);
+}
 
-  auto putop_final(Alignment const & alignment, Position const & position) -> void {
-    if (position.line == 0) { return; }  // final block already printed
-    q_line[position.line] = '\0';
-    a_line[position.line] = '\0';
-    d_line[position.line] = '\0';
-    print_alignment_block(alignment, position);
-  }
+} // end of anonymous namespace
 
-}  // end of anonymous namespace
-
-
-auto align_show(std::FILE * output_handle,
-                char const * seq1,
-                int64_t const seq1len,
-                int64_t const seq1off,
-                char const * seq1name,
-                char const * seq2,
-                int64_t const seq2len,
-                int64_t const seq2off,
-                char const * seq2name,
-                char const * cigar,
-                int64_t const cigarlen,
-                int const numwidth,
-                int const namewidth,
-                int const alignwidth,
-                int const strand) -> void
-{
+auto align_show(std::FILE *output_handle, char const *seq1,
+                int64_t const seq1len, int64_t const seq1off,
+                char const *seq1name, char const *seq2, int64_t const seq2len,
+                int64_t const seq2off, char const *seq2name, char const *cigar,
+                int64_t const cigarlen, int const numwidth, int const namewidth,
+                int const alignwidth, int const strand) -> void {
 
   Alignment alignment;
   alignment.output_handle = output_handle;
@@ -334,7 +301,9 @@ auto align_show(std::FILE * output_handle,
   // };
 
   Position position;
-  position.query = alignment.is_reverse_strand ? alignment.query.length - 1 - alignment.query.offset : alignment.query.offset;
+  position.query = alignment.is_reverse_strand
+                       ? alignment.query.length - 1 - alignment.query.offset
+                       : alignment.query.offset;
   position.target = alignment.target.offset;
   position.query_start = position.query;
   position.target_start = position.target;
@@ -343,9 +312,11 @@ auto align_show(std::FILE * output_handle,
   a_line.resize(alignment.width + 1);
   d_line.resize(alignment.width + 1);
 
-  // cigar string can be trimmed (left and right): cigarlen maybe != std::strlen(cigar)
-  auto const cigar_pairs = parse_cigar_string(Span<char>{cigar, static_cast<size_t>(cigarlen)});
-  for (auto const & a_pair: cigar_pairs) {
+  // cigar string can be trimmed (left and right): cigarlen maybe !=
+  // std::strlen(cigar)
+  auto const cigar_pairs =
+      parse_cigar_string(Span<char>{cigar, static_cast<size_t>(cigarlen)});
+  for (auto const &a_pair : cigar_pairs) {
     auto const operation = a_pair.first;
     auto const runlength = a_pair.second;
     putop(alignment, position, operation, runlength);
@@ -358,16 +329,18 @@ auto align_show(std::FILE * output_handle,
   d_line.clear();
 }
 
-
 auto get_alignment_qrow(Span<char> const seq_view, Span<char> const cigar_view,
                         int const alignlen) -> std::vector<char> {
-  static constexpr auto insertion_equivalent = adapt_to_viewpoint(Viewpoint::query);
-  return get_alignment_row(seq_view, cigar_view, alignlen, insertion_equivalent);
+  static constexpr auto insertion_equivalent =
+      adapt_to_viewpoint(Viewpoint::query);
+  return get_alignment_row(seq_view, cigar_view, alignlen,
+                           insertion_equivalent);
 }
-
 
 auto get_alignment_trow(Span<char> const seq_view, Span<char> const cigar_view,
                         int const alignlen) -> std::vector<char> {
-  static constexpr auto insertion_equivalent = adapt_to_viewpoint(Viewpoint::target);
-  return get_alignment_row(seq_view, cigar_view, alignlen, insertion_equivalent);
+  static constexpr auto insertion_equivalent =
+      adapt_to_viewpoint(Viewpoint::target);
+  return get_alignment_row(seq_view, cigar_view, alignlen,
+                           insertion_equivalent);
 }

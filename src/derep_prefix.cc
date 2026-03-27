@@ -58,40 +58,37 @@
 
 */
 
-#include "vsearch.h"
 #include "utils/fatal.hpp"
 #include "utils/seqcmp.hpp"
 #include "utils/span.hpp"
-#include <algorithm>  // std::max, std::transform
-#include <cinttypes>  // macros PRIu64 and PRId64
-#include <cstdint> // int64_t, uint64_t
-#include <cstdlib>  // std::qsort
-#include <cstdio>  // std::FILE, std::fprintf, std::fclose
-#include <cstring>  // std::strcmp
+#include "vsearch.h"
+#include <algorithm> // std::max, std::transform
+#include <cinttypes> // macros PRIu64 and PRId64
+#include <cstdint>   // int64_t, uint64_t
+#include <cstdio>    // std::FILE, std::fprintf, std::fclose
+#include <cstdlib>   // std::qsort
+#include <cstring>   // std::strcmp
 #include <iterator>  // std::next
 #include <limits>
 #include <vector>
 
-
-struct bucket
-{
+struct bucket {
   uint64_t hash = 0;
   unsigned int seqno_first = 0;
   unsigned int seqno_last = 0;
   unsigned int size = 0;
   unsigned int count = 0;
   bool deleted = false;
-  char * header = nullptr;
-  char * seq = nullptr;
-  char * qual = nullptr;
+  char *header = nullptr;
+  char *seq = nullptr;
+  char *qual = nullptr;
 };
-
 
 // refactoring: FNV-1A is the hashing function used in std::hash
 // (designed for fast hash-table and checksum, not crypto). The
 // function below might be redundant with std?
 
-auto compute_hashes_of_all_prefixes(std::vector<uint64_t> & prefix_hashes,
+auto compute_hashes_of_all_prefixes(std::vector<uint64_t> &prefix_hashes,
                                     Span<char> const sequence) -> void {
   // Fowler-Noll-Vo (FNV-1A) hash function
   static constexpr auto FNV_offset_basis = uint64_t{14695981039346656037U};
@@ -103,87 +100,71 @@ auto compute_hashes_of_all_prefixes(std::vector<uint64_t> & prefix_hashes,
     FNV1a_hash *= FNV_prime;
     return FNV1a_hash;
   };
-  std::transform(sequence.cbegin(),
-                 sequence.cend(),
-                 std::next(prefix_hashes.begin()),
-                 incremental_hash);
+  std::transform(sequence.cbegin(), sequence.cend(),
+                 std::next(prefix_hashes.begin()), incremental_hash);
 }
 
+auto derep_compare_prefix(const void *a, const void *b) -> int {
+  auto *lhs = (struct bucket *)a;
+  auto *rhs = (struct bucket *)b;
 
-auto derep_compare_prefix(const void * a, const void * b) -> int
-{
-  auto * lhs = (struct bucket *) a;
-  auto * rhs = (struct bucket *) b;
+  /* deleted(?) first, then by highest abundance, then by label, otherwise keep
+   * order */
 
-  /* deleted(?) first, then by highest abundance, then by label, otherwise keep order */
-
-  if (static_cast<int>(lhs->deleted) > static_cast<int>(rhs->deleted))
-    {
-      return +1;
-    }
-  if (static_cast<int>(lhs->deleted) < static_cast<int>(rhs->deleted))
-    {
-      return -1;
-    }
+  if (static_cast<int>(lhs->deleted) > static_cast<int>(rhs->deleted)) {
+    return +1;
+  }
+  if (static_cast<int>(lhs->deleted) < static_cast<int>(rhs->deleted)) {
+    return -1;
+  }
 
   // both are deleted, compare abundances
-  if (lhs->size < rhs->size)
-    {
-      return +1;
-    }
-  if (lhs->size > rhs->size)
-    {
-      return -1;
-    }
+  if (lhs->size < rhs->size) {
+    return +1;
+  }
+  if (lhs->size > rhs->size) {
+    return -1;
+  }
 
   // both are deleted, same abundances, compare sequence headers
   auto const result = std::strcmp(db_getheader(lhs->seqno_first),
                                   db_getheader(rhs->seqno_first));
-  if (result != 0)
-    {
-      return result;
-    }
+  if (result != 0) {
+    return result;
+  }
 
-  // both are deleted, same abundances, same sequence headers, compare input order
-  if (lhs->seqno_first < rhs->seqno_first)
-    {
-      return -1;
-    }
-  if (lhs->seqno_first > rhs->seqno_first)
-    {
-      return +1;
-    }
+  // both are deleted, same abundances, same sequence headers, compare input
+  // order
+  if (lhs->seqno_first < rhs->seqno_first) {
+    return -1;
+  }
+  if (lhs->seqno_first > rhs->seqno_first) {
+    return +1;
+  }
   return 0;
 }
 
+auto derep_prefix(struct Parameters const &parameters) -> void {
+  std::FILE *fp_output = nullptr;
+  std::FILE *fp_uc = nullptr;
 
-auto derep_prefix(struct Parameters const & parameters) -> void
-{
-  std::FILE * fp_output = nullptr;
-  std::FILE * fp_uc = nullptr;
+  if (parameters.opt_strand) {
+    fatal("Option '--strand both' not supported with --derep_prefix");
+  }
 
-  if (parameters.opt_strand)
-    {
-      fatal("Option '--strand both' not supported with --derep_prefix");
+  if (parameters.opt_output != nullptr) {
+    fp_output = fopen_output(parameters.opt_output);
+    if (fp_output == nullptr) {
+      fatal("Unable to open output file for writing");
     }
+  }
 
-  if (parameters.opt_output != nullptr)
-    {
-      fp_output = fopen_output(parameters.opt_output);
-      if (fp_output == nullptr)
-        {
-          fatal("Unable to open output file for writing");
-        }
+  if (parameters.opt_uc != nullptr) {
+    fp_uc = fopen_output(parameters.opt_uc);
+    if (fp_uc == nullptr) {
+      fatal("Unable to open output (uc) file for writing");
     }
-
-  if (parameters.opt_uc != nullptr)
-    {
-      fp_uc = fopen_output(parameters.opt_uc);
-      if (fp_uc == nullptr)
-        {
-          fatal("Unable to open output (uc) file for writing");
-        }
-    }
+  }
 
   db_read(parameters.opt_derep_prefix, 0);
 
@@ -196,10 +177,9 @@ auto derep_prefix(struct Parameters const & parameters) -> void
   /* adjust size of hash table for 2/3 fill rate */
 
   int64_t hashtablesize = 1;
-  while (3 * dbsequencecount > 2 * hashtablesize)
-    {
-      hashtablesize <<= 1U;
-    }
+  while (3 * dbsequencecount > 2 * hashtablesize) {
+    hashtablesize <<= 1U;
+  }
   int const hash_mask = hashtablesize - 1;
 
   std::vector<struct bucket> hashtable(hashtablesize);
@@ -224,308 +204,265 @@ auto derep_prefix(struct Parameters const & parameters) -> void
   std::vector<uint64_t> prefix_hashes(len_longest + 1);
 
   progress_init("Dereplicating", dbsequencecount);
-  for (int64_t i = 0; i < dbsequencecount; i++)
-    {
-      unsigned int const seqlen = db_getsequencelen(i);
-      auto * seq = db_getsequence(i);
+  for (int64_t i = 0; i < dbsequencecount; i++) {
+    unsigned int const seqlen = db_getsequencelen(i);
+    auto *seq = db_getsequence(i);
 
-      /* normalize sequence: uppercase and replace U by T  */
-      string_normalize(seq_up.data(), seq, seqlen);
+    /* normalize sequence: uppercase and replace U by T  */
+    string_normalize(seq_up.data(), seq, seqlen);
 
-      auto const abundance = parameters.opt_sizein ? db_getabundance(i) : 1;
-      sumsize += abundance;
+    auto const abundance = parameters.opt_sizein ? db_getabundance(i) : 1;
+    sumsize += abundance;
 
-      /*
-        Look for matching identical or prefix sequences.
+    /*
+      Look for matching identical or prefix sequences.
 
-        Use a hash function that can quickly be applied iteratively on longer
-        and longer sequences.
+      Use a hash function that can quickly be applied iteratively on longer
+      and longer sequences.
 
-        Hash values are generated for all prefixes and saved.
+      Hash values are generated for all prefixes and saved.
 
-        Should start at exact sequence and then try shorter and shorter
-        sequences.
+      Should start at exact sequence and then try shorter and shorter
+      sequences.
 
-        No need to check shorter sequences than the shortest in the database.
+      No need to check shorter sequences than the shortest in the database.
 
-        Three cases:
-        1) Exact match: Update count, point to next
-        2) Prefix match: Mark old, insert new, update count, point to next
-        3) No match: Insert new entry
+      Three cases:
+      1) Exact match: Update count, point to next
+      2) Prefix match: Mark old, insert new, update count, point to next
+      3) No match: Insert new entry
 
-      */
+    */
 
-      compute_hashes_of_all_prefixes(prefix_hashes, Span<char>{seq_up.data(), seqlen});
+    compute_hashes_of_all_prefixes(prefix_hashes,
+                                   Span<char>{seq_up.data(), seqlen});
 
-      /* first, look for an identical match */
+    /* first, look for an identical match */
 
-      auto prefix_len = seqlen;
+    auto prefix_len = seqlen;
 
-      uint64_t hash = prefix_hashes[prefix_len];
-      auto * bp = &hashtable[hash & hash_mask];
+    uint64_t hash = prefix_hashes[prefix_len];
+    auto *bp = &hashtable[hash & hash_mask];
 
-      while ((bp->size != 0U) and
-             ((bp->deleted) or
-              (bp->hash != hash) or
-              (prefix_len != db_getsequencelen(bp->seqno_first)) or
-              (seqcmp(seq_up.data(), db_getsequence(bp->seqno_first), prefix_len) != 0)))
-        {
-          ++bp;
-          if (bp > &hashtable.back())
-            {
-              bp = hashtable.data();
-            }
-        }
-
-      /* at this point, bp points either to (1) a free empty hash bucket, or
-         (2) a bucket with an exact match. */
-
-      auto const orig_hash = hash;
-      auto * orig_bp = bp;
-
-      if (bp->size != 0U)
-        {
-          /* exact match */
-          bp->size += abundance;
-          auto const last = bp->seqno_last;
-          nextseqtab[last] = i;
-          bp->seqno_last = i;
-
-          maxsize = std::max<uint64_t>(bp->size, maxsize);
-        }
-      else
-        {
-          /* look for prefix match */
-
-          while ((bp->size == 0U) and (prefix_len > len_shortest))
-            {
-              --prefix_len;
-              hash = prefix_hashes[prefix_len];
-              bp = &hashtable[hash & hash_mask];
-
-              while ((bp->size != 0U) and
-                     ((bp->deleted) or
-                      (bp->hash != hash) or
-                      (prefix_len != db_getsequencelen(bp->seqno_first)) or
-                      (seqcmp(seq_up.data(),
-                              db_getsequence(bp->seqno_first),
-                              prefix_len) != 0)))
-                {
-                  ++bp;
-                  if (bp > &hashtable.back())
-                    {
-                      bp = hashtable.data();
-                    }
-                }
-            }
-
-          if (bp->size != 0U)
-            {
-              /* prefix match */
-
-              /* get necessary info, then delete prefix from hash */
-              auto const first = bp->seqno_first;
-              auto const last = bp->seqno_last;
-              auto const size = bp->size;
-              bp->deleted = true;
-
-              /* create new hash entry */
-              bp = orig_bp;
-              bp->size = size + abundance;
-              bp->hash = orig_hash;
-              bp->seqno_first = i;
-              nextseqtab[i] = first;
-              bp->seqno_last = last;
-
-              maxsize = std::max<uint64_t>(bp->size, maxsize);
-            }
-          else
-            {
-              /* no match */
-              orig_bp->size = abundance;
-              orig_bp->hash = orig_hash;
-              orig_bp->seqno_first = i;
-              orig_bp->seqno_last = i;
-
-              maxsize = std::max(abundance, maxsize);
-              ++clusters;
-            }
-        }
-
-      progress_update(i);
+    while ((bp->size != 0U) and
+           ((bp->deleted) or (bp->hash != hash) or
+            (prefix_len != db_getsequencelen(bp->seqno_first)) or
+            (seqcmp(seq_up.data(), db_getsequence(bp->seqno_first),
+                    prefix_len) != 0))) {
+      ++bp;
+      if (bp > &hashtable.back()) {
+        bp = hashtable.data();
+      }
     }
+
+    /* at this point, bp points either to (1) a free empty hash bucket, or
+       (2) a bucket with an exact match. */
+
+    auto const orig_hash = hash;
+    auto *orig_bp = bp;
+
+    if (bp->size != 0U) {
+      /* exact match */
+      bp->size += abundance;
+      auto const last = bp->seqno_last;
+      nextseqtab[last] = i;
+      bp->seqno_last = i;
+
+      maxsize = std::max<uint64_t>(bp->size, maxsize);
+    } else {
+      /* look for prefix match */
+
+      while ((bp->size == 0U) and (prefix_len > len_shortest)) {
+        --prefix_len;
+        hash = prefix_hashes[prefix_len];
+        bp = &hashtable[hash & hash_mask];
+
+        while ((bp->size != 0U) and
+               ((bp->deleted) or (bp->hash != hash) or
+                (prefix_len != db_getsequencelen(bp->seqno_first)) or
+                (seqcmp(seq_up.data(), db_getsequence(bp->seqno_first),
+                        prefix_len) != 0))) {
+          ++bp;
+          if (bp > &hashtable.back()) {
+            bp = hashtable.data();
+          }
+        }
+      }
+
+      if (bp->size != 0U) {
+        /* prefix match */
+
+        /* get necessary info, then delete prefix from hash */
+        auto const first = bp->seqno_first;
+        auto const last = bp->seqno_last;
+        auto const size = bp->size;
+        bp->deleted = true;
+
+        /* create new hash entry */
+        bp = orig_bp;
+        bp->size = size + abundance;
+        bp->hash = orig_hash;
+        bp->seqno_first = i;
+        nextseqtab[i] = first;
+        bp->seqno_last = last;
+
+        maxsize = std::max<uint64_t>(bp->size, maxsize);
+      } else {
+        /* no match */
+        orig_bp->size = abundance;
+        orig_bp->hash = orig_hash;
+        orig_bp->seqno_first = i;
+        orig_bp->seqno_last = i;
+
+        maxsize = std::max(abundance, maxsize);
+        ++clusters;
+      }
+    }
+
+    progress_update(i);
+  }
   progress_done();
 
   show_rusage();
 
   progress_init("Sorting", 1);
-  qsort(hashtable.data(), hashtablesize, sizeof(struct bucket), derep_compare_prefix);
+  qsort(hashtable.data(), hashtablesize, sizeof(struct bucket),
+        derep_compare_prefix);
   progress_done();
 
-  if (clusters > 0)
-    {
-      if ((clusters % 2) != 0)
-        {
-          median = hashtable[(clusters - 1) / 2].size;
-        }
-      else
-        {
-          median = (hashtable[(clusters / 2) - 1].size +
-                    hashtable[clusters / 2].size) / 2.0;
-        }
+  if (clusters > 0) {
+    if ((clusters % 2) != 0) {
+      median = hashtable[(clusters - 1) / 2].size;
+    } else {
+      median =
+          (hashtable[(clusters / 2) - 1].size + hashtable[clusters / 2].size) /
+          2.0;
     }
+  }
 
   average = 1.0 * sumsize / clusters;
 
-  if (clusters < 1)
-    {
-      if (not parameters.opt_quiet)
-        {
-          fprintf(stderr,
-                  "0 unique sequences\n");
-        }
-      if (parameters.opt_log != nullptr)
-        {
-          fprintf(fp_log,
-                  "0 unique sequences\n\n");
-        }
+  if (clusters < 1) {
+    if (not parameters.opt_quiet) {
+      fprintf(stderr, "0 unique sequences\n");
     }
-  else
-    {
-      if (not parameters.opt_quiet)
-        {
-          fprintf(stderr,
-                  "%" PRId64
-                  " unique sequences, avg cluster %.1lf, median %.0f, max %"
-                  PRIu64 "\n",
-                  clusters, average, median, maxsize);
-        }
-      if (parameters.opt_log != nullptr)
-        {
-          fprintf(fp_log,
-                  "%" PRId64
-                  " unique sequences, avg cluster %.1lf, median %.0f, max %"
-                  PRIu64 "\n\n",
-                  clusters, average, median, maxsize);
-        }
+    if (parameters.opt_log != nullptr) {
+      fprintf(fp_log, "0 unique sequences\n\n");
     }
+  } else {
+    if (not parameters.opt_quiet) {
+      fprintf(stderr,
+              "%" PRId64
+              " unique sequences, avg cluster %.1lf, median %.0f, max %" PRIu64
+              "\n",
+              clusters, average, median, maxsize);
+    }
+    if (parameters.opt_log != nullptr) {
+      fprintf(fp_log,
+              "%" PRId64
+              " unique sequences, avg cluster %.1lf, median %.0f, max %" PRIu64
+              "\n\n",
+              clusters, average, median, maxsize);
+    }
+  }
 
   show_rusage();
 
   /* count selected */
 
   int64_t selected = 0;
-  for (int64_t i = 0; i < clusters; i++)
-    {
-      int64_t const size = hashtable[i].size;
-      if ((size >= parameters.opt_minuniquesize) and (size <= parameters.opt_maxuniquesize))
-        {
-          ++selected;
-          if (selected == parameters.opt_topn)
-            {
-              break;
-            }
-        }
+  for (int64_t i = 0; i < clusters; i++) {
+    int64_t const size = hashtable[i].size;
+    if ((size >= parameters.opt_minuniquesize) and
+        (size <= parameters.opt_maxuniquesize)) {
+      ++selected;
+      if (selected == parameters.opt_topn) {
+        break;
+      }
     }
-
+  }
 
   /* write output */
 
-  if (parameters.opt_output != nullptr)
-    {
-      progress_init("Writing output file", clusters);
+  if (parameters.opt_output != nullptr) {
+    progress_init("Writing output file", clusters);
 
-      int64_t relabel_count = 0;
-      for (int64_t i = 0; i < clusters; i++)
-        {
-          auto const & bp = hashtable[i];
-          int64_t const size = bp.size;
-          if ((size >= parameters.opt_minuniquesize) and (size <= parameters.opt_maxuniquesize))
-            {
-              ++relabel_count;
-              fasta_print_general(fp_output,
-                                  nullptr,
-                                  db_getsequence(bp.seqno_first),
-                                  db_getsequencelen(bp.seqno_first),
-                                  db_getheader(bp.seqno_first),
-                                  db_getheaderlen(bp.seqno_first),
-                                  size,
-                                  relabel_count,
-                                  -1.0,
-                                  -1, -1, nullptr, 0.0);
-              if (relabel_count == parameters.opt_topn)
-                {
-                  break;
-                }
-            }
-          progress_update(i);
+    int64_t relabel_count = 0;
+    for (int64_t i = 0; i < clusters; i++) {
+      auto const &bp = hashtable[i];
+      int64_t const size = bp.size;
+      if ((size >= parameters.opt_minuniquesize) and
+          (size <= parameters.opt_maxuniquesize)) {
+        ++relabel_count;
+        fasta_print_general(fp_output, nullptr, db_getsequence(bp.seqno_first),
+                            db_getsequencelen(bp.seqno_first),
+                            db_getheader(bp.seqno_first),
+                            db_getheaderlen(bp.seqno_first), size,
+                            relabel_count, -1.0, -1, -1, nullptr, 0.0);
+        if (relabel_count == parameters.opt_topn) {
+          break;
         }
-
-      progress_done();
-      fclose(fp_output);
+      }
+      progress_update(i);
     }
+
+    progress_done();
+    fclose(fp_output);
+  }
 
   show_rusage();
 
-  if (parameters.opt_uc != nullptr)
-    {
-      progress_init("Writing uc file, first part", clusters);
-      for (int64_t i = 0; i < clusters; i++)
-        {
-          auto const & bp = hashtable[i];
-          auto * h =  db_getheader(bp.seqno_first);
-          int64_t const len = db_getsequencelen(bp.seqno_first);
+  if (parameters.opt_uc != nullptr) {
+    progress_init("Writing uc file, first part", clusters);
+    for (int64_t i = 0; i < clusters; i++) {
+      auto const &bp = hashtable[i];
+      auto *h = db_getheader(bp.seqno_first);
+      int64_t const len = db_getsequencelen(bp.seqno_first);
 
-          fprintf(fp_uc, "S\t%" PRId64 "\t%" PRId64 "\t*\t*\t*\t*\t*\t%s\t*\n",
-                  i, len, h);
+      fprintf(fp_uc, "S\t%" PRId64 "\t%" PRId64 "\t*\t*\t*\t*\t*\t%s\t*\n", i,
+              len, h);
 
-          for (auto next = nextseqtab[bp.seqno_first];
-               next != terminal;
-               next = nextseqtab[next])
-            {
-              fprintf(fp_uc,
-                      "H\t%" PRId64 "\t%" PRIu64 "\t%.1f\t+\t0\t0\t*\t%s\t%s\n",
-                      i, db_getsequencelen(next), 100.0, db_getheader(next), h);
-            }
+      for (auto next = nextseqtab[bp.seqno_first]; next != terminal;
+           next = nextseqtab[next]) {
+        fprintf(fp_uc,
+                "H\t%" PRId64 "\t%" PRIu64 "\t%.1f\t+\t0\t0\t*\t%s\t%s\n", i,
+                db_getsequencelen(next), 100.0, db_getheader(next), h);
+      }
 
-          progress_update(i);
-        }
-      progress_done();
-      show_rusage();
+      progress_update(i);
+    }
+    progress_done();
+    show_rusage();
 
-      progress_init("Writing uc file, second part", clusters);
-      for (int64_t i = 0; i < clusters; i++)
-        {
-          auto const & bp = hashtable[i];
-          fprintf(fp_uc, "C\t%" PRId64 "\t%u\t*\t*\t*\t*\t*\t%s\t*\n",
-                  i, bp.size, db_getheader(bp.seqno_first));
-          progress_update(i);
-        }
-      fclose(fp_uc);
-      progress_done();
-      show_rusage();
+    progress_init("Writing uc file, second part", clusters);
+    for (int64_t i = 0; i < clusters; i++) {
+      auto const &bp = hashtable[i];
+      fprintf(fp_uc, "C\t%" PRId64 "\t%u\t*\t*\t*\t*\t*\t%s\t*\n", i, bp.size,
+              db_getheader(bp.seqno_first));
+      progress_update(i);
+    }
+    fclose(fp_uc);
+    progress_done();
+    show_rusage();
+  }
+
+  if (selected < clusters) {
+    if (not parameters.opt_quiet) {
+      fprintf(stderr,
+              "%" PRId64 " uniques written, %" PRId64
+              " clusters discarded (%.1f%%)\n",
+              selected, clusters - selected,
+              100.0 * (clusters - selected) / clusters);
     }
 
-  if (selected < clusters)
-    {
-      if (not parameters.opt_quiet)
-        {
-          fprintf(stderr,
-                  "%" PRId64 " uniques written, %" PRId64
-                  " clusters discarded (%.1f%%)\n",
-                  selected, clusters - selected,
-                  100.0 * (clusters - selected) / clusters);
-        }
-
-      if (parameters.opt_log != nullptr)
-        {
-          fprintf(fp_log,
-                  "%" PRId64 " uniques written, %" PRId64
-                  " clusters discarded (%.1f%%)\n\n",
-                  selected, clusters - selected,
-                  100.0 * (clusters - selected) / clusters);
-        }
+    if (parameters.opt_log != nullptr) {
+      fprintf(fp_log,
+              "%" PRId64 " uniques written, %" PRId64
+              " clusters discarded (%.1f%%)\n\n",
+              selected, clusters - selected,
+              100.0 * (clusters - selected) / clusters);
     }
+  }
 
   db_free();
 }

@@ -58,9 +58,8 @@
 
 */
 
-#include <cstdio>  // std::FILE, std:fclose, std::fopen
-#include <memory>  // std::unique_ptr
-
+#include <cstdio> // std::FILE, std:fclose, std::fopen
+#include <memory> // std::unique_ptr
 
 // Make sure std::FILE * cannot leak
 
@@ -74,14 +73,13 @@
 
 // prefer a deleter struct with an operator() to call std::fclose
 struct CloseFileHandle {
-  auto operator()(std::FILE * file_handle) -> void {
+  auto operator()(std::FILE *file_handle) -> void {
     static_cast<void>(std::fclose(file_handle));
   }
 };
 
 using FileHandle = std::unique_ptr<std::FILE, CloseFileHandle>;
 
+auto open_input_file(char const *filename) -> FileHandle;
 
-auto open_input_file(char const * filename) -> FileHandle;
-
-auto open_output_file(char const * filename) -> FileHandle;
+auto open_output_file(char const *filename) -> FileHandle;

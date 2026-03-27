@@ -58,13 +58,12 @@
 
 */
 
-#include <cstdint>  // uint64_t
+#include <cstdint> // uint64_t
 
+auto seqcmp(char const *lhs, char const *rhs, uint64_t length) -> int;
 
-auto seqcmp(char const * lhs, char const * rhs, uint64_t length) -> int;
+auto seqcmp(char const *lhs, char const *rhs, unsigned int length) -> int;
 
-auto seqcmp(char const * lhs, char const * rhs, unsigned int length) -> int;
+auto seqcmp(char const *lhs, char const *rhs, int64_t length) -> int;
 
-auto seqcmp(char const * lhs, char const * rhs, int64_t length) -> int;
-
-auto seqcmp(char const * lhs, char const * rhs, int length) -> int;
+auto seqcmp(char const *lhs, char const *rhs, int length) -> int;

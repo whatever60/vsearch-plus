@@ -58,4 +58,4 @@
 
 */
 
-auto derep_smallmem(struct Parameters const & parameters) -> void;
+auto derep_smallmem(struct Parameters const &parameters) -> void;

@@ -31,14 +31,14 @@
 // is Murmur3.  For 64-bit x86 code, CityHash64 is an excellent choice for hash
 // tables and most other hashing (excluding cryptography).
 //
-// For 64-bit x86 code, on long strings (> 900), the picture is more complicated.
-// On many recent Intel CPUs, such as Nehalem, Westmere, Sandy Bridge, etc.,
-// CityHashCrc128 appears to be faster than all competitors of comparable
-// quality.  CityHash128 is also good but not quite as fast.  We believe our
-// nearest competitor is Bob Jenkins' Spooky.  We don't have great data for
-// other 64-bit CPUs, but for long strings we know that Spooky is slightly
-// faster than CityHash on some relatively recent AMD x86-64 CPUs, for example.
-// Note that CityHashCrc128 is declared in citycrc.h.
+// For 64-bit x86 code, on long strings (> 900), the picture is more
+// complicated. On many recent Intel CPUs, such as Nehalem, Westmere, Sandy
+// Bridge, etc., CityHashCrc128 appears to be faster than all competitors of
+// comparable quality.  CityHash128 is also good but not quite as fast.  We
+// believe our nearest competitor is Bob Jenkins' Spooky.  We don't have great
+// data for other 64-bit CPUs, but for long strings we know that Spooky is
+// slightly faster than CityHash on some relatively recent AMD x86-64 CPUs, for
+// example. Note that CityHashCrc128 is declared in citycrc.h.
 //
 // For 32-bit x86 code, we don't know of anything faster than CityHash32 that
 // is of comparable quality.  We believe our nearest competitor is Murmur3A.
@@ -62,16 +62,15 @@
 #ifndef CITY_HASH_H_
 #define CITY_HASH_H_
 
-#include <cstdint>  // uint64_t
-#include <cstdlib>  // std::size_t
-#include <utility>  // std::pair
-
+#include <cstdint> // uint64_t
+#include <cstdlib> // std::size_t
+#include <utility> // std::pair
 
 using uint128 = std::pair<uint64_t, uint64_t>;
 
 // Hash functions for byte arrays
-auto CityHash64(const char * seq, std::size_t len) -> uint64_t;
+auto CityHash64(const char *seq, std::size_t len) -> uint64_t;
 
-auto CityHash128(const char * seq, std::size_t len) -> uint128;
+auto CityHash128(const char *seq, std::size_t len) -> uint128;
 
-#endif  // CITY_HASH_H_
+#endif // CITY_HASH_H_

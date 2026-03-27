@@ -58,7 +58,6 @@
 
 */
 
-
 // CIGAR operations: match (M), insertion (I), or deletion (D)
 // unused in vsearch: mismatch (X) and gap (N)
 

@@ -58,6 +58,6 @@
 
 */
 
-auto fastq_filter(struct Parameters const & parameters) -> void;
-auto fastq_filter_paired_ext(struct Parameters const & parameters) -> void;
-auto fastx_filter(struct Parameters const & parameters) -> void;
+auto fastq_filter(struct Parameters const &parameters) -> void;
+auto fastq_filter_paired_ext(struct Parameters const &parameters) -> void;
+auto fastx_filter(struct Parameters const &parameters) -> void;

@@ -58,12 +58,10 @@
 
 */
 
-#include <cstdint>  // uint64_t
+#include <cstdint> // uint64_t
 #include <cstdio>  // std::size_t
 
-
-struct seqinfo_s
-{
+struct seqinfo_s {
   std::size_t header_p;
   std::size_t seq_p;
   std::size_t qual_p;
@@ -74,35 +72,30 @@ struct seqinfo_s
 
 using seqinfo_t = struct seqinfo_s;
 
-extern char * datap;
-extern seqinfo_t * seqindex;
+extern char *datap;
+extern seqinfo_t *seqindex;
 
-inline auto db_getheader(uint64_t seqno) -> char *
-{
+inline auto db_getheader(uint64_t seqno) -> char * {
   return datap + seqindex[seqno].header_p;
 }
 
-inline auto db_getsequence(uint64_t seqno) -> char *
-{
+inline auto db_getsequence(uint64_t seqno) -> char * {
   return datap + seqindex[seqno].seq_p;
 }
 
-inline auto db_getabundance(uint64_t seqno) -> uint64_t
-{
+inline auto db_getabundance(uint64_t seqno) -> uint64_t {
   return seqindex[seqno].size;
 }
 
-inline auto db_getsequencelen(uint64_t seqno) -> uint64_t
-{
+inline auto db_getsequencelen(uint64_t seqno) -> uint64_t {
   return seqindex[seqno].seqlen;
 }
 
-inline auto db_getheaderlen(uint64_t seqno) -> uint64_t
-{
+inline auto db_getheaderlen(uint64_t seqno) -> uint64_t {
   return seqindex[seqno].headerlen;
 }
 
-auto db_read(const char * filename, int upcase) -> void;
+auto db_read(const char *filename, int upcase) -> void;
 auto db_free() -> void;
 
 auto db_getsequencecount() -> uint64_t;
@@ -122,17 +115,10 @@ auto db_sortbyabundance() -> void;
 auto db_is_fastq() -> bool;
 auto db_getquality(uint64_t seqno) -> char *;
 
-auto db_setinfo(bool new_is_fastq,
-                uint64_t new_sequences,
-                uint64_t new_nucleotides,
-                uint64_t new_longest,
-                uint64_t new_shortest,
-                uint64_t new_longestheader) -> void;
+auto db_setinfo(bool new_is_fastq, uint64_t new_sequences,
+                uint64_t new_nucleotides, uint64_t new_longest,
+                uint64_t new_shortest, uint64_t new_longestheader) -> void;
 
-auto db_add(bool is_fastq,
-            char const * header,
-            char const * sequence,
-            char const * quality,
-            std::size_t headerlength,
-            std::size_t sequencelength,
-            int64_t abundance) -> void;
+auto db_add(bool is_fastq, char const *header, char const *sequence,
+            char const *quality, std::size_t headerlength,
+            std::size_t sequencelength, int64_t abundance) -> void;

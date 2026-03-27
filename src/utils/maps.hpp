@@ -63,7 +63,6 @@
 
 #include <vector>
 
-
 extern const std::vector<unsigned char> chrmap_no_change_vector;
 
 extern const std::vector<unsigned char> chrmap_normalize_vector;

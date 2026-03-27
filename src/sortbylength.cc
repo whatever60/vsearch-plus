@@ -58,148 +58,139 @@
 
 */
 
-#include "vsearch.h"
 #include "utils/check_output_filehandle.hpp"
 #include "utils/fatal.hpp"
 #include "utils/open_file.hpp"
 #include "utils/progress.hpp"
-#include <algorithm>  // std::sort, std::min
+#include "vsearch.h"
+#include <algorithm> // std::sort, std::min
 #include <cassert>
 #include <cstdio>  // std::FILE, std::fprintf, std::size_t
-#include <cstdlib>  // std::ldiv
-#include <cstring>  // std::strcmp
+#include <cstdlib> // std::ldiv
+#include <cstring> // std::strcmp
 #include <vector>
 
 #ifndef NDEBUG
 #include <limits>
 #endif
 
-
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {
 
-  struct sortinfo_length_s
-  {
-    unsigned int length = 0;
-    unsigned int size = 0;
-    unsigned int seqno = 0;
+struct sortinfo_length_s {
+  unsigned int length = 0;
+  unsigned int size = 0;
+  unsigned int seqno = 0;
+};
+
+auto create_deck(struct Parameters const &parameters)
+    -> std::vector<struct sortinfo_length_s> {
+  auto const dbsequencecount = db_getsequencecount();
+  assert(dbsequencecount < std::numeric_limits<std::size_t>::max());
+  std::vector<struct sortinfo_length_s> deck(dbsequencecount);
+  Progress progress("Getting lengths", deck.size(), parameters);
+  auto counter = std::size_t{0};
+  for (auto &sequence : deck) {
+    sequence.seqno = counter;
+    sequence.length = db_getsequencelen(counter);
+    sequence.size = db_getabundance(counter);
+    progress.update(counter);
+    ++counter;
+  }
+  return deck;
+}
+
+auto sort_deck(std::vector<sortinfo_length_s> &deck,
+               struct Parameters const &parameters) -> void {
+  auto compare_sequences = [](struct sortinfo_length_s const &lhs,
+                              struct sortinfo_length_s const &rhs) -> bool {
+    // longest first...
+    if (lhs.length < rhs.length) {
+      return false;
+    }
+    if (lhs.length > rhs.length) {
+      return true;
+    }
+    // ... then ties are sorted by decreasing abundance values...
+    if (lhs.size < rhs.size) {
+      return false;
+    }
+    if (lhs.size > rhs.size) {
+      return true;
+    }
+    // ...then ties are sorted by sequence labels (alpha-numerical ordering),
+    // preserve input order
+    auto const result =
+        std::strcmp(db_getheader(lhs.seqno), db_getheader(rhs.seqno));
+    return result < 0;
   };
 
+  static constexpr auto one_hundred_percent = 100ULL;
+  Progress const progress("Sorting", one_hundred_percent, parameters);
+  std::stable_sort(deck.begin(), deck.end(), compare_sequences);
+}
 
-  auto create_deck(struct Parameters const & parameters) -> std::vector<struct sortinfo_length_s> {
-    auto const dbsequencecount = db_getsequencecount();
-    assert(dbsequencecount < std::numeric_limits<std::size_t>::max());
-    std::vector<struct sortinfo_length_s> deck(dbsequencecount);
-    Progress progress("Getting lengths", deck.size(), parameters);
-    auto counter = std::size_t{0};
-    for (auto & sequence: deck) {
-      sequence.seqno = counter;
-      sequence.length = db_getsequencelen(counter);
-      sequence.size = db_getabundance(counter);
-      progress.update(counter);
-      ++counter;
-    }
-    return deck;
+// refactoring C++17 [[nodiscard]]
+auto find_median_length(std::vector<sortinfo_length_s> const &deck) -> double {
+  // function returns a round value or a value with a remainder of 0.5
+  static constexpr double half = 0.5;
+
+  if (deck.empty()) {
+    return 0.0;
   }
 
+  // refactoring C++11: use const& std::vector.size()
+  auto const midarray = std::ldiv(static_cast<long>(deck.size()), 2L);
 
-  auto sort_deck(std::vector<sortinfo_length_s> & deck,
-                 struct Parameters const & parameters) -> void {
-    auto compare_sequences = [](struct sortinfo_length_s const & lhs,
-                                struct sortinfo_length_s const & rhs) -> bool {
-      // longest first...
-      if (lhs.length < rhs.length) {
-        return false;
-      }
-      if (lhs.length > rhs.length) {
-        return true;
-      }
-      // ... then ties are sorted by decreasing abundance values...
-      if (lhs.size < rhs.size) {
-        return false;
-      }
-      if (lhs.size > rhs.size) {
-        return true;
-      }
-      // ...then ties are sorted by sequence labels (alpha-numerical ordering),
-      // preserve input order
-      auto const result = std::strcmp(db_getheader(lhs.seqno), db_getheader(rhs.seqno));
-      return result < 0;
-    };
-
-    static constexpr auto one_hundred_percent = 100ULL;
-    Progress const progress("Sorting", one_hundred_percent, parameters);
-    std::stable_sort(deck.begin(), deck.end(), compare_sequences);
+  // odd number of valid amplicons
+  if (deck.size() % 2 != 0) {
+    return deck[midarray.quot].length * 1.0; // a round value
   }
 
+  // even number of valid amplicons
+  // (average of two ints is either round or has a remainder of .5)
+  // avoid risk of silent overflow for large abundance values:
+  // a >= b ; (a + b) / 2 == b + (a - b) / 2
+  return deck[midarray.quot].length +
+         ((deck[midarray.quot - 1].length - deck[midarray.quot].length) * half);
+}
 
-  // refactoring C++17 [[nodiscard]]
-  auto find_median_length(std::vector<sortinfo_length_s> const & deck) -> double {
-    // function returns a round value or a value with a remainder of 0.5
-    static constexpr double half = 0.5;
-
-    if (deck.empty()) {
-      return 0.0;
-    }
-
-    // refactoring C++11: use const& std::vector.size()
-    auto const midarray = std::ldiv(static_cast<long>(deck.size()), 2L);
-
-    // odd number of valid amplicons
-    if (deck.size() % 2 != 0)  {
-      return deck[midarray.quot].length * 1.0;  // a round value
-    }
-
-    // even number of valid amplicons
-    // (average of two ints is either round or has a remainder of .5)
-    // avoid risk of silent overflow for large abundance values:
-    // a >= b ; (a + b) / 2 == b + (a - b) / 2
-    return deck[midarray.quot].length +
-      ((deck[midarray.quot - 1].length - deck[midarray.quot].length) * half);
+auto output_median_length(std::vector<struct sortinfo_length_s> const &deck,
+                          struct Parameters const &parameters) -> void {
+  // Banker's rounding (round half to even)
+  auto const median = find_median_length(deck);
+  if (not parameters.opt_quiet) {
+    std::fprintf(stderr, "Median length: %.0f\n", median);
   }
-
-
-  auto output_median_length(std::vector<struct sortinfo_length_s> const & deck,
-                            struct Parameters const & parameters) -> void {
-    // Banker's rounding (round half to even)
-    auto const median = find_median_length(deck);
-    if (not parameters.opt_quiet)
-      {
-        std::fprintf(stderr, "Median length: %.0f\n", median);
-      }
-    if (parameters.opt_log != nullptr)
-      {
-        std::fprintf(fp_log, "Median length: %.0f\n", median);
-      }
+  if (parameters.opt_log != nullptr) {
+    std::fprintf(fp_log, "Median length: %.0f\n", median);
   }
+}
 
-
-  // refactoring: extract as a template
-  auto truncate_deck(std::vector<struct sortinfo_length_s> & deck,
-                     long int const n_first_sequences) -> void {
-    if (deck.size() > static_cast<unsigned long>(n_first_sequences)) {
-      deck.resize(n_first_sequences);
-    }
+// refactoring: extract as a template
+auto truncate_deck(std::vector<struct sortinfo_length_s> &deck,
+                   long int const n_first_sequences) -> void {
+  if (deck.size() > static_cast<unsigned long>(n_first_sequences)) {
+    deck.resize(n_first_sequences);
   }
+}
 
-
-  // refactoring: extract as a template
-  auto output_sorted_fasta(std::vector<struct sortinfo_length_s> const & deck,
-                           std::FILE * output_file,
-                           struct Parameters const & parameters) -> void {
-    Progress progress("Writing output", deck.size(), parameters);
-    auto counter = std::size_t{0};
-    for (auto const & sequence: deck) {
-      fasta_print_db_relabel(output_file, sequence.seqno, counter + 1);
-      progress.update(counter);
-      ++counter;
-    }
+// refactoring: extract as a template
+auto output_sorted_fasta(std::vector<struct sortinfo_length_s> const &deck,
+                         std::FILE *output_file,
+                         struct Parameters const &parameters) -> void {
+  Progress progress("Writing output", deck.size(), parameters);
+  auto counter = std::size_t{0};
+  for (auto const &sequence : deck) {
+    fasta_print_db_relabel(output_file, sequence.seqno, counter + 1);
+    progress.update(counter);
+    ++counter;
   }
+}
 
-}  // end of anonymous namespace
+} // end of anonymous namespace
 
-
-auto sortbylength(struct Parameters const & parameters) -> void {
+auto sortbylength(struct Parameters const &parameters) -> void {
   auto const output_handle = open_output_file(parameters.opt_output);
   check_mandatory_output_handle(parameters.opt_output, (not output_handle));
   db_read(parameters.opt_sortbylength, 0);

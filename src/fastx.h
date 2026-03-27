@@ -59,43 +59,39 @@
 */
 
 #include <array>
+#include <cstdint> // uint64_t
 #include <cstdio>  // std::FILE
-#include <cstdint>  // uint64_t
-
 
 constexpr auto byte_range = 256U;
 
-struct fastx_buffer_s
-{
-  char * data = nullptr;
+struct fastx_buffer_s {
+  char *data = nullptr;
   uint64_t length = 0;
   uint64_t alloc = 0;
   uint64_t position = 0;
 };
 
-auto buffer_init(struct fastx_buffer_s * buffer) -> void;
-auto buffer_free(struct fastx_buffer_s * buffer) -> void;
-auto buffer_extend(struct fastx_buffer_s * dest_buffer,
-                   char * source_buf,
+auto buffer_init(struct fastx_buffer_s *buffer) -> void;
+auto buffer_free(struct fastx_buffer_s *buffer) -> void;
+auto buffer_extend(struct fastx_buffer_s *dest_buffer, char *source_buf,
                    uint64_t len) -> void;
-auto buffer_makespace(struct fastx_buffer_s * buffer, uint64_t size) -> void;
+auto buffer_makespace(struct fastx_buffer_s *buffer, uint64_t size) -> void;
 
 enum struct Format : unsigned char { undefined, plain, bzip, gzip };
 
-struct fastx_s
-{
+struct fastx_s {
   bool is_pipe = false;
   bool is_fastq = false;
   bool is_empty = false;
 
-  std::FILE * fp = nullptr;
+  std::FILE *fp = nullptr;
 
 #ifdef HAVE_ZLIB_H
   gzFile fp_gz = nullptr;
 #endif
 
 #ifdef HAVE_BZLIB_H
-  BZFILE * fp_bz = nullptr;
+  BZFILE *fp_bz = nullptr;
 #endif
 
   struct fastx_buffer_s file_buffer;
@@ -113,25 +109,24 @@ struct fastx_s
   int64_t seqno = 0;
 
   uint64_t stripped_all = 0;
-  std::array<uint64_t, byte_range> stripped {{}};
+  std::array<uint64_t, byte_range> stripped{{}};
 
   Format format = Format::undefined;
 };
 
 using fastx_handle = struct fastx_s *;
 
-
 /* fastx input */
 
 auto fastx_is_fastq(fastx_handle input_handle) -> bool;
 auto fastx_is_empty(fastx_handle input_handle) -> bool;
 auto fastx_is_pipe(fastx_handle input_handle) -> bool;
-auto fastx_filter_header(fastx_handle input_handle, bool truncateatspace) -> void;
-auto fastx_open(const char * filename) -> fastx_handle;
+auto fastx_filter_header(fastx_handle input_handle, bool truncateatspace)
+    -> void;
+auto fastx_open(const char *filename) -> fastx_handle;
 auto fastx_close(fastx_handle input_handle) -> void;
-auto fastx_next(fastx_handle input_handle,
-                bool truncateatspace,
-                const unsigned char * char_mapping) -> bool;
+auto fastx_next(fastx_handle input_handle, bool truncateatspace,
+                const unsigned char *char_mapping) -> bool;
 auto fastx_get_position(fastx_handle input_handle) -> uint64_t;
 auto fastx_get_size(fastx_handle input_handle) -> uint64_t;
 auto fastx_get_lineno(fastx_handle input_handle) -> uint64_t;

@@ -58,72 +58,64 @@
 
 */
 
-#include "fatal.hpp"
 #include "open_file.hpp"
-#include <unistd.h>  // dup, STDIN_FILENO, STDOUT_FILENO
+#include "fatal.hpp"
 #include <cassert>
-#include <cerrno>  // errno
-#include <cstdio>  // std::fopen, fdopen
+#include <cerrno>   // errno
+#include <cstdio>   // std::fopen, fdopen
 #include <cstring>  // std::strcmp
-
+#include <unistd.h> // dup, STDIN_FILENO, STDOUT_FILENO
 
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {
 
-  // C++17 refactoring:
-  // constexpr std::string_view a_dash = "-";
-  // simpler string comparisons: if (filename == a_dash) {
+// C++17 refactoring:
+// constexpr std::string_view a_dash = "-";
+// simpler string comparisons: if (filename == a_dash) {
 
-  // type-safe string mode wrapper
-  struct ModeString {
-    explicit constexpr ModeString(char const * str) noexcept
-      : mode(str) {
-    }
-    char const * mode;
-  };
+// type-safe string mode wrapper
+struct ModeString {
+  explicit constexpr ModeString(char const *str) noexcept : mode(str) {}
+  char const *mode;
+};
 
+// Safely wrapping fopen()
+auto open_file(char const *filename, ModeString const &mode) -> FileHandle {
+  assert(filename != nullptr);
+  assert(mode.mode != nullptr);
+  return FileHandle{std::fopen(filename, mode.mode)};
+}
 
-  // Safely wrapping fopen()
-  auto open_file(char const * filename,
-                 ModeString const & mode) -> FileHandle {
-    assert(filename != nullptr);
-    assert(mode.mode != nullptr);
-    return FileHandle{std::fopen(filename, mode.mode)};
+auto open_file_descriptor(int const file_descriptor, ModeString const &mode)
+    -> FileHandle {
+  assert(file_descriptor >= 0);
+  assert(mode.mode != nullptr);
+  return FileHandle{fdopen(file_descriptor, mode.mode)};
+}
+
+auto check_file_descriptor(int const file_descriptor) -> void {
+  assert(file_descriptor >= -1);
+  if (file_descriptor != -1) {
+    return;
   }
-
-
-  auto open_file_descriptor(int const file_descriptor,
-                            ModeString const & mode) -> FileHandle {
-    assert(file_descriptor >= 0);
-    assert(mode.mode != nullptr);
-    return FileHandle{fdopen(file_descriptor, mode.mode)};
+  if (errno == EBADF) {
+    fatal("original fd is not an open file descriptor.");
   }
-
-
-  auto check_file_descriptor(int const file_descriptor) -> void {
-    assert(file_descriptor >= -1);
-    if (file_descriptor != -1) {
-      return;
-    }
-    if (errno == EBADF) {
-      fatal("original fd is not an open file descriptor.");
-    }
-    if (errno == EMFILE) {
-      fatal("too many open file descriptors.");
-    }
-    fatal("cannot duplicate input or output stream.");
+  if (errno == EMFILE) {
+    fatal("too many open file descriptors.");
   }
+  fatal("cannot duplicate input or output stream.");
+}
 
-}  // end of anonymous namespace
-
+} // end of anonymous namespace
 
 // read_file, file to read, open_input_file, open_istream
-auto open_input_file(char const * filename) -> FileHandle {
+auto open_input_file(char const *filename) -> FileHandle {
   if (filename == nullptr) {
-    std::FILE * empty = nullptr;
+    std::FILE *empty = nullptr;
     return FileHandle{empty};
   }
-  auto const mode = ModeString{"rb"};  // r: reading, b: non-UNIX environments
+  auto const mode = ModeString{"rb"}; // r: reading, b: non-UNIX environments
   /* open the input stream given by filename, but if name is '-' then
      use a duplicate of stdin (fd = STDIN_FILENO = 0) */
   if (std::strcmp(filename, "-") == 0) {
@@ -134,14 +126,13 @@ auto open_input_file(char const * filename) -> FileHandle {
   return open_file(filename, mode);
 }
 
-
 // write_file, file to write, open_output_file, open_ostream
-auto open_output_file(char const * filename) -> FileHandle {
+auto open_output_file(char const *filename) -> FileHandle {
   if (filename == nullptr) {
-    std::FILE * empty = nullptr;
+    std::FILE *empty = nullptr;
     return FileHandle{empty};
   }
-  auto const mode = ModeString{"w"};  // w: writing, no b?
+  auto const mode = ModeString{"w"}; // w: writing, no b?
   /* open the output stream given by filename, but if name is '-' then
      use a duplicate of stdout (fd = STDOUT_FILENO = 1) */
   if (std::strcmp(filename, "-") == 0) {

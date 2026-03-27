@@ -59,7 +59,7 @@
 */
 
 #include <cassert>
-#include <cstdint>  // uint16_t, uint32_t
+#include <cstdint> // uint16_t, uint32_t
 #include <type_traits>
 
 #ifndef NDEBUG
@@ -77,7 +77,7 @@
 // for instance: let's round up 11 to the next multiple of 8, i.e. 16
 //
 //  - multiple (8):    b0000'1000
-//  -  1:              b0000'0001 
+//  -  1:              b0000'0001
 //                     ----------  (minus)
 //  - stub:            b0000'0111
 //
@@ -92,7 +92,7 @@
 //                     ----------  (add)
 //                     b0001'0010  => temporary result is 18
 //
-// 
+//
 //  - 18:              b0001'0010
 //  - bitmask:         b1111'1000
 //                     ----------  (bitwise and (&))
@@ -100,13 +100,12 @@
 //
 // note: if input > max + x, then round up is > max => Error!
 
-
 // C++14 refactoring: constexpr
 // C++17 refactoring: [[nodiscard]]
 template <typename Unsigned = std::uint16_t>
 auto round_up_to_8(Unsigned const input) -> Unsigned {
-  static_assert(std::is_same<Unsigned, std::uint16_t>::value            \
-                or std::is_same<Unsigned, std::uint32_t>::value,
+  static_assert(std::is_same<Unsigned, std::uint16_t>::value or
+                    std::is_same<Unsigned, std::uint32_t>::value,
                 "Invalid type! Only uint16_t, or uint32_t can be used.");
   // add stub to guarantee overflow into the next bucket, then zero
   // out the remainder bits
@@ -117,7 +116,6 @@ auto round_up_to_8(Unsigned const input) -> Unsigned {
   assert(input <= std::numeric_limits<Unsigned>::max() - stub);
   return (input + stub) & bitmask;
 }
-
 
 // refactoring: C++14 tests
 
@@ -140,7 +138,8 @@ static_assert(round_up_to_8<std::uint16_t>(7) == 8, "");
 static_assert(round_up_to_8<std::uint16_t>(8) == 8, "");
 static_assert(round_up_to_8<std::uint16_t>(9) == 16, "");
 static_assert(round_up_to_8<std::uint16_t>(15) == 16, "");
-static_assert(round_up_to_8<std::uint16_t>(65'528) == 65'528, "");  // max uint16_t - 7
+static_assert(round_up_to_8<std::uint16_t>(65'528) == 65'528, "");  // max
+uint16_t - 7
 
 // test return values (std::uint32_t)
 static_assert(round_up_to_8<std::uint32_t>(0) == 0, "");
@@ -149,10 +148,10 @@ static_assert(round_up_to_8<std::uint32_t>(7) == 8, "");
 static_assert(round_up_to_8<std::uint32_t>(8) == 8, "");
 static_assert(round_up_to_8<std::uint32_t>(9) == 16, "");
 static_assert(round_up_to_8<std::uint32_t>(15) == 16, "");
-static_assert(round_up_to_8<std::uint32_t>(4'294'967'288) == 4'294'967'288, ""); // max uint32_t - 7
+static_assert(round_up_to_8<std::uint32_t>(4'294'967'288) == 4'294'967'288, "");
+// max uint32_t - 7
 
 */
-
 
 // refactoring:
 
@@ -161,6 +160,6 @@ static_assert(round_up_to_8<std::uint32_t>(4'294'967'288) == 4'294'967'288, "");
 // usage:
 //
 // auto const y = Round_up(x).to_next_multiple<8>()
-// auto const y = Round_up<uint32_t>(x).to_next_multiple<8>() 
+// auto const y = Round_up<uint32_t>(x).to_next_multiple<8>()
 // auto const y = Round_up(x).to_next_power<2>()
 // ...

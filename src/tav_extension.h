@@ -20,14 +20,15 @@
 
 struct Parameters;
 
-auto tav_is_catalog_file(char const * filename) -> bool;
+auto tav_is_catalog_file(char const *filename) -> bool;
 
-auto tav_fastx_uniques(struct Parameters const & parameters) -> void;
+auto tav_fastx_uniques(struct Parameters const &parameters) -> void;
 
-auto tav_cluster_unoise(struct Parameters const & parameters) -> void;
+auto tav_cluster_unoise(struct Parameters const &parameters) -> void;
 
-auto tav_uchime3_denovo(struct Parameters const & parameters) -> void;
+auto tav_uchime3_denovo(struct Parameters const &parameters) -> void;
 
-auto tav_usearch_global(struct Parameters const & parameters, char * cmdline, char * progheader) -> void;
+auto tav_usearch_global(struct Parameters const &parameters, char *cmdline,
+                        char *progheader) -> void;
 
 #endif

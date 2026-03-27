@@ -63,17 +63,11 @@ struct uhandle_s;
 
 auto unique_init() -> struct uhandle_s *;
 
-auto unique_exit(struct uhandle_s * unique_handle) -> void;
+auto unique_exit(struct uhandle_s *unique_handle) -> void;
 
-auto unique_count(struct uhandle_s * unique_handle,
-                  int wordlength,
-                  int seqlen,
-                  char const * seq,
-                  unsigned int * listlen,
-                  unsigned int const * * list,
-                  int seqmask) -> void;
+auto unique_count(struct uhandle_s *unique_handle, int wordlength, int seqlen,
+                  char const *seq, unsigned int *listlen,
+                  unsigned int const **list, int seqmask) -> void;
 
-auto unique_count_shared(struct uhandle_s const & unique_handle,
-                         int wordlength,
-                         int listlen,
-                         unsigned int const * list) -> unsigned int;
+auto unique_count_shared(struct uhandle_s const &unique_handle, int wordlength,
+                         int listlen, unsigned int const *list) -> unsigned int;

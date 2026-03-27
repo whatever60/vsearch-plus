@@ -58,17 +58,16 @@
 
 */
 
-#include "vsearch.h"
 #include "utils/maps.hpp"
 #include "utils/span.hpp"
-#include <algorithm>  // std::find_if
+#include "vsearch.h"
+#include <algorithm> // std::find_if
 #include <cassert>
-#include <cinttypes>  // macros PRIu64 and PRId64
-#include <cstdint>  // int64_t, uint64_t
-#include <cstdio>  // std::FILE, std::fprintf, std::fclose, std::size_t
+#include <cinttypes> // macros PRIu64 and PRId64
+#include <cstdint>   // int64_t, uint64_t
+#include <cstdio>    // std::FILE, std::fprintf, std::fclose, std::size_t
 #include <iterator>  // std::distance
 #include <vector>
-
 
 #ifndef NDEBUG
 #include <limits>
@@ -80,268 +79,237 @@ constexpr unsigned int n_characters = 256;
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {
 
-  struct statistics {
-    std::vector<uint64_t> sequence_chars;
-    std::vector<uint64_t> quality_chars;
-    std::vector<uint64_t> tail_chars;
-    std::vector<int> maxrun;
-    uint64_t total_chars = 0;
-    uint64_t seq_count = 0;
-    unsigned char qmin_n = 255;
-    unsigned char qmax_n = 0;
-    char qmin = '\0';
-    char qmax = '\0';
-    char fastq_ascii = '\0';
-    char fastq_qmin = '\0';
-    char fastq_qmax = '\0';
-  };
+struct statistics {
+  std::vector<uint64_t> sequence_chars;
+  std::vector<uint64_t> quality_chars;
+  std::vector<uint64_t> tail_chars;
+  std::vector<int> maxrun;
+  uint64_t total_chars = 0;
+  uint64_t seq_count = 0;
+  unsigned char qmin_n = 255;
+  unsigned char qmax_n = 0;
+  char qmin = '\0';
+  char qmax = '\0';
+  char fastq_ascii = '\0';
+  char fastq_qmin = '\0';
+  char fastq_qmax = '\0';
+};
 
+auto guess_quality_offset(struct statistics &stats) -> void {
+  static constexpr auto lowerbound = ';'; // char 59 (-5 to offset +64)
+  static constexpr auto upperbound =
+      'K'; // char 75 (+1 after offset +33 normal range)
 
-  auto guess_quality_offset(struct statistics & stats) -> void {
-    static constexpr auto lowerbound = ';';  // char 59 (-5 to offset +64)
-    static constexpr auto upperbound = 'K';  // char 75 (+1 after offset +33 normal range)
-
-    if ((stats.qmin < lowerbound) or (stats.qmax < upperbound)) {
-      stats.fastq_ascii = static_cast<char>(default_ascii_offset);  // +33, from vsearch.h
-    }
-    else {
-      stats.fastq_ascii = alternative_ascii_offset;  // +64, from vsearch.h
-    }
-    stats.fastq_qmax = static_cast<char>(stats.qmax - stats.fastq_ascii);
-    stats.fastq_qmin = static_cast<char>(stats.qmin - stats.fastq_ascii);
+  if ((stats.qmin < lowerbound) or (stats.qmax < upperbound)) {
+    stats.fastq_ascii =
+        static_cast<char>(default_ascii_offset); // +33, from vsearch.h
+  } else {
+    stats.fastq_ascii = alternative_ascii_offset; // +64, from vsearch.h
   }
+  stats.fastq_qmax = static_cast<char>(stats.qmax - stats.fastq_ascii);
+  stats.fastq_qmin = static_cast<char>(stats.qmin - stats.fastq_ascii);
+}
 
-
-  auto find_lowest_quality_symbol(struct statistics & stats) -> void {
-    auto lowest = std::find_if(stats.quality_chars.cbegin(),
-                               stats.quality_chars.cend(),
-                               [](uint64_t const counter) -> bool {
-                                 return counter != 0;
-                               });
-    if (lowest == stats.quality_chars.cend()) {
-      return;
-    }
-    auto const index = std::distance(stats.quality_chars.cbegin(), lowest);
-    assert(index >= 0);
-    assert(index <= char_max);
-    stats.qmin = static_cast<char>(index);
+auto find_lowest_quality_symbol(struct statistics &stats) -> void {
+  auto lowest =
+      std::find_if(stats.quality_chars.cbegin(), stats.quality_chars.cend(),
+                   [](uint64_t const counter) -> bool { return counter != 0; });
+  if (lowest == stats.quality_chars.cend()) {
+    return;
   }
+  auto const index = std::distance(stats.quality_chars.cbegin(), lowest);
+  assert(index >= 0);
+  assert(index <= char_max);
+  stats.qmin = static_cast<char>(index);
+}
 
-
-  auto find_highest_quality_symbol(struct statistics & stats) -> void {
-    // note: searching using reverse iterators
-    auto highest = std::find_if(stats.quality_chars.rbegin(),
-                                stats.quality_chars.rend(),
-                                [](uint64_t const counter) -> bool {
-                                  return counter != 0; }
-                                );
-    if (highest == stats.quality_chars.rend()) {
-      return;
-    }
-    auto const index = std::distance(highest, stats.quality_chars.rend()) - 1;
-    assert(index >= 0);
-    assert(index <= char_max);
-    stats.qmax = static_cast<char>(index);
+auto find_highest_quality_symbol(struct statistics &stats) -> void {
+  // note: searching using reverse iterators
+  auto highest =
+      std::find_if(stats.quality_chars.rbegin(), stats.quality_chars.rend(),
+                   [](uint64_t const counter) -> bool { return counter != 0; });
+  if (highest == stats.quality_chars.rend()) {
+    return;
   }
+  auto const index = std::distance(highest, stats.quality_chars.rend()) - 1;
+  assert(index >= 0);
+  assert(index <= char_max);
+  stats.qmax = static_cast<char>(index);
+}
 
-
-  auto search_trailing_homopolymers(Span<char> const symbols, int64_t const tail_length_signed) -> char {
-    // search for trailing homopolymers of length >= 'tail_length'
-    assert(tail_length_signed >= 0);
-    auto const tail_length = static_cast<std::size_t>(tail_length_signed);
-    if (symbols.size() < tail_length) {
-      return '\0';
-    }
-    auto const last_symbol = symbols.back();
-    auto const tail = symbols.last(tail_length);
-    if (std::all_of(
-            tail.begin(), tail.end(),
-            [last_symbol](char const symbol) -> bool { return symbol == last_symbol; })
-        ) {
-      return last_symbol;
-    }
+auto search_trailing_homopolymers(Span<char> const symbols,
+                                  int64_t const tail_length_signed) -> char {
+  // search for trailing homopolymers of length >= 'tail_length'
+  assert(tail_length_signed >= 0);
+  auto const tail_length = static_cast<std::size_t>(tail_length_signed);
+  if (symbols.size() < tail_length) {
     return '\0';
   }
+  auto const last_symbol = symbols.back();
+  auto const tail = symbols.last(tail_length);
+  if (std::all_of(tail.begin(), tail.end(),
+                  [last_symbol](char const symbol) -> bool {
+                    return symbol == last_symbol;
+                  })) {
+    return last_symbol;
+  }
+  return '\0';
+}
 
+auto stats_message(std::FILE *output_stream, struct statistics const &stats)
+    -> void {
+  static constexpr char first_char_in_Illumina_1_5 = 'B';   // 66th char
+  static constexpr char last_char_in_original_Sanger = 'I'; // 73th char
+  assert(stats.sequence_chars['n'] ==
+         0); // sequences are uppercased, no results for lowercase symbols
+  std::fprintf(output_stream, "Read %" PRIu64 " sequences.\n", stats.seq_count);
 
-  auto stats_message(std::FILE * output_stream,
-                     struct statistics const & stats) -> void {
-    static constexpr char first_char_in_Illumina_1_5 = 'B';  // 66th char
-    static constexpr char last_char_in_original_Sanger = 'I';  // 73th char
-    assert(stats.sequence_chars['n'] == 0);  // sequences are uppercased, no results for lowercase symbols
-    std::fprintf(output_stream, "Read %" PRIu64 " sequences.\n", stats.seq_count);
+  if (stats.seq_count == 0) {
+    return;
+  }
 
-    if (stats.seq_count == 0) {
-      return;
+  std::fprintf(output_stream, "Qmin %d, Qmax %d, Range %d\n", stats.qmin,
+               stats.qmax, stats.qmax - stats.qmin + 1);
+
+  std::fprintf(output_stream,
+               "Guess: -fastq_qmin %d -fastq_qmax %d -fastq_ascii %d\n",
+               stats.fastq_qmin, stats.fastq_qmax, stats.fastq_ascii);
+
+  if (stats.fastq_ascii == alternative_ascii_offset) {
+    if (stats.qmin < alternative_ascii_offset) {
+      std::fprintf(output_stream, "Guess: Solexa format (phred+64)\n");
+    } else if (stats.qmin < first_char_in_Illumina_1_5) {
+      std::fprintf(output_stream, "Guess: Illumina 1.3+ format (phred+64)\n");
+    } else {
+      // Illumina 1.5+ Phred+64, quality values ranging from 3 to 41 (ascii: 67
+      // to 105) Q2 (ascii 66, 'B') is the Read Segment Quality Control
+      // Indicator
+      std::fprintf(output_stream, "Guess: Illumina 1.5+ format (phred+64)\n");
     }
+  } else {
+    if (stats.qmax > last_char_in_original_Sanger) {
+      std::fprintf(output_stream, "Guess: Illumina 1.8+ format (phred+33)\n");
+    } else {
+      // Sanger Phred+33, quality values ranging from 0 to 40 (ascii: 33 to 73)
+      std::fprintf(output_stream, "Guess: Original Sanger format (phred+33)\n");
+    }
+  }
 
-    std::fprintf(output_stream, "Qmin %d, Qmax %d, Range %d\n",
-                 stats.qmin, stats.qmax, stats.qmax - stats.qmin + 1);
+  std::fprintf(output_stream, "\n");
+  std::fprintf(output_stream, "Letter          N   Freq MaxRun\n");
+  std::fprintf(output_stream, "------ ---------- ------ ------\n");
 
-    std::fprintf(output_stream, "Guess: -fastq_qmin %d -fastq_qmax %d -fastq_ascii %d\n",
-                 stats.fastq_qmin, stats.fastq_qmax, stats.fastq_ascii);
-
-    if (stats.fastq_ascii == alternative_ascii_offset)
-      {
-        if (stats.qmin < alternative_ascii_offset)
-          {
-            std::fprintf(output_stream, "Guess: Solexa format (phred+64)\n");
-          }
-        else if (stats.qmin < first_char_in_Illumina_1_5)
-          {
-            std::fprintf(output_stream, "Guess: Illumina 1.3+ format (phred+64)\n");
-          }
-        else
-          {
-            // Illumina 1.5+ Phred+64, quality values ranging from 3 to 41 (ascii: 67 to 105)
-            // Q2 (ascii 66, 'B') is the Read Segment Quality Control Indicator
-            std::fprintf(output_stream, "Guess: Illumina 1.5+ format (phred+64)\n");
-          }
+  double const percentage_factor =
+      100.0 / static_cast<double>(stats.total_chars);
+  unsigned char index = 0;
+  for (auto const counter : stats.sequence_chars) {
+    if (counter == 0) {
+      ++index;
+      continue;
+    }
+    std::fprintf(output_stream, "     %c %10" PRIu64 " %5.1f%% %6d", index,
+                 counter, static_cast<double>(counter) * percentage_factor,
+                 stats.maxrun[index]);
+    if (index == 'N') {
+      if (stats.qmin_n < stats.qmax_n) {
+        std::fprintf(output_stream, "  Q=%c..%c", stats.qmin_n, stats.qmax_n);
+      } else {
+        std::fprintf(output_stream, "  Q=%c", stats.qmin_n);
       }
-    else
-      {
-        if (stats.qmax > last_char_in_original_Sanger)
-          {
-            std::fprintf(output_stream, "Guess: Illumina 1.8+ format (phred+33)\n");
-          }
-        else
-          {
-            // Sanger Phred+33, quality values ranging from 0 to 40 (ascii: 33 to 73)
-            std::fprintf(output_stream, "Guess: Original Sanger format (phred+33)\n");
-          }
-      }
-
+    }
     std::fprintf(output_stream, "\n");
-    std::fprintf(output_stream, "Letter          N   Freq MaxRun\n");
-    std::fprintf(output_stream, "------ ---------- ------ ------\n");
-
-    double const percentage_factor = 100.0 / static_cast<double>(stats.total_chars);
-    unsigned char index = 0;
-    for (auto const counter: stats.sequence_chars)
-      {
-        if (counter == 0) { ++index ; continue; }
-        std::fprintf(output_stream, "     %c %10" PRIu64 " %5.1f%% %6d",
-                     index,
-                     counter,
-                     static_cast<double>(counter) * percentage_factor,
-                     stats.maxrun[index]);
-        if (index == 'N')
-          {
-            if (stats.qmin_n < stats.qmax_n)
-              {
-                std::fprintf(output_stream, "  Q=%c..%c", stats.qmin_n, stats.qmax_n);
-              }
-            else
-              {
-                std::fprintf(output_stream, "  Q=%c", stats.qmin_n);
-              }
-          }
-        std::fprintf(output_stream, "\n");
-        ++index;
-      }
-
-    std::fprintf(output_stream, "\n");
-    std::fprintf(output_stream, "Char  ASCII    Freq       Tails\n");
-    std::fprintf(output_stream, "----  -----  ------  ----------\n");
-
-    for (char i = stats.qmin; i <= stats.qmax; ++i)
-      {
-        if (stats.quality_chars[i] == 0) {
-          continue;
-        }
-        std::fprintf(output_stream,
-                     " '%c'  %5d  %5.1f%%  %10" PRIu64 "\n",
-                     i,
-                     i,
-                     static_cast<double>(stats.quality_chars[i]) * percentage_factor,
-                     stats.tail_chars[i]);
-      }
+    ++index;
   }
 
+  std::fprintf(output_stream, "\n");
+  std::fprintf(output_stream, "Char  ASCII    Freq       Tails\n");
+  std::fprintf(output_stream, "----  -----  ------  ----------\n");
 
-  auto output_stats_message(struct Parameters const & parameters,
-                            struct statistics const & stats,
-                            char const * log_filename) -> void {
-    if (log_filename == nullptr) {
-      return;
+  for (char i = stats.qmin; i <= stats.qmax; ++i) {
+    if (stats.quality_chars[i] == 0) {
+      continue;
     }
-    stats_message(parameters.fp_log, stats);
+    std::fprintf(output_stream, " '%c'  %5d  %5.1f%%  %10" PRIu64 "\n", i, i,
+                 static_cast<double>(stats.quality_chars[i]) *
+                     percentage_factor,
+                 stats.tail_chars[i]);
   }
+}
 
-
-  auto output_stats_message(struct Parameters const & parameters,
-                            struct statistics const & stats) -> void {
-    if (parameters.opt_quiet) {
-      return;
-    }
-    stats_message(stderr, stats);
+auto output_stats_message(struct Parameters const &parameters,
+                          struct statistics const &stats,
+                          char const *log_filename) -> void {
+  if (log_filename == nullptr) {
+    return;
   }
-}  // end of anonymous namespace
+  stats_message(parameters.fp_log, stats);
+}
 
+auto output_stats_message(struct Parameters const &parameters,
+                          struct statistics const &stats) -> void {
+  if (parameters.opt_quiet) {
+    return;
+  }
+  stats_message(stderr, stats);
+}
+} // end of anonymous namespace
 
-auto fastq_chars(struct Parameters const & parameters) -> void
-{
+auto fastq_chars(struct Parameters const &parameters) -> void {
   struct statistics stats;
   stats.sequence_chars.resize(n_characters);
   stats.quality_chars.resize(n_characters);
   stats.tail_chars.resize(n_characters);
   stats.maxrun.resize(n_characters);
 
-  auto * fastq_handle = fastq_open(parameters.opt_fastq_chars);
+  auto *fastq_handle = fastq_open(parameters.opt_fastq_chars);
 
   auto const filesize = fastq_get_size(fastq_handle);
 
   progress_init("Reading FASTQ file", filesize);
 
-  while (fastq_next(fastq_handle, false, chrmap_upcase_vector.data()))
-    {
-      auto const seq_length = fastq_get_sequence_length(fastq_handle);
-      auto const * seq_ptr = fastq_get_sequence(fastq_handle);
-      auto const * qual_ptr = fastq_get_quality(fastq_handle);
+  while (fastq_next(fastq_handle, false, chrmap_upcase_vector.data())) {
+    auto const seq_length = fastq_get_sequence_length(fastq_handle);
+    auto const *seq_ptr = fastq_get_sequence(fastq_handle);
+    auto const *qual_ptr = fastq_get_quality(fastq_handle);
 
-      ++stats.seq_count;
-      stats.total_chars += seq_length;
+    ++stats.seq_count;
+    stats.total_chars += seq_length;
 
-      auto run_char = -1;
-      auto run = 0;
+    auto run_char = -1;
+    auto run = 0;
 
-      for (auto i = 0ULL ; i < seq_length ; ++i)
-        {
-          auto const seq_symbol = static_cast<unsigned char>(*seq_ptr);
-          std::advance(seq_ptr, 1);
-          auto const qual_symbol = static_cast<unsigned char>(*qual_ptr);
-          std::advance(qual_ptr, 1);
-          ++stats.sequence_chars[seq_symbol];
-          ++stats.quality_chars[qual_symbol];
+    for (auto i = 0ULL; i < seq_length; ++i) {
+      auto const seq_symbol = static_cast<unsigned char>(*seq_ptr);
+      std::advance(seq_ptr, 1);
+      auto const qual_symbol = static_cast<unsigned char>(*qual_ptr);
+      std::advance(qual_ptr, 1);
+      ++stats.sequence_chars[seq_symbol];
+      ++stats.quality_chars[qual_symbol];
 
-          if (seq_symbol == 'N')
-            {
-              stats.qmin_n = std::min(qual_symbol, stats.qmin_n);
-              stats.qmax_n = std::max(qual_symbol, stats.qmax_n);
-            }
-
-          if (seq_symbol == run_char)
-            {
-              ++run;
-              stats.maxrun[run_char] = std::max(run, stats.maxrun[run_char]);
-            }
-          else
-            {
-              run_char = seq_symbol;
-              run = 0;
-            }
-        }
-
-      // search for trailing homopolymers in quality strings
-      auto const tail_char =
-        search_trailing_homopolymers(Span<char>{fastq_get_quality(fastq_handle), seq_length},
-                                     parameters.opt_fastq_tail);
-      if (tail_char != '\0') {
-        ++stats.tail_chars[tail_char];
+      if (seq_symbol == 'N') {
+        stats.qmin_n = std::min(qual_symbol, stats.qmin_n);
+        stats.qmax_n = std::max(qual_symbol, stats.qmax_n);
       }
 
-      progress_update(fastq_get_position(fastq_handle));
+      if (seq_symbol == run_char) {
+        ++run;
+        stats.maxrun[run_char] = std::max(run, stats.maxrun[run_char]);
+      } else {
+        run_char = seq_symbol;
+        run = 0;
+      }
     }
+
+    // search for trailing homopolymers in quality strings
+    auto const tail_char = search_trailing_homopolymers(
+        Span<char>{fastq_get_quality(fastq_handle), seq_length},
+        parameters.opt_fastq_tail);
+    if (tail_char != '\0') {
+      ++stats.tail_chars[tail_char];
+    }
+
+    progress_update(fastq_get_position(fastq_handle));
+  }
   progress_done();
 
   fastq_close(fastq_handle);

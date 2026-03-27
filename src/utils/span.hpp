@@ -61,8 +61,7 @@
 #ifndef SPAN_HPP
 #define SPAN_HPP
 
-
-#include <algorithm>  // std::equal, std::lexicographical_compare, std::min
+#include <algorithm> // std::equal, std::lexicographical_compare, std::min
 #include <cassert>
 #include <cstddef>  // std::ptrdiff_t
 #include <cstdlib>  // std::size_t
@@ -75,45 +74,41 @@ constexpr auto max_ptrdiff = std::numeric_limits<std::ptrdiff_t>::max();
 constexpr auto max_size = std::numeric_limits<std::size_t>::max();
 #endif
 
-
 // TODO:
-//  - turn into a View (not allowed to modify the underlying data), not possible because ot strtoll()
+//  - turn into a View (not allowed to modify the underlying data), not possible
+//  because ot strtoll()
 //  - add friend function for custom hashing,
 //  - goal is to be able to build std::map and std::set of Span<char>
 //  - mark member functions as noexcept, use gcc -Wnoexcept to catch mismatches
-
 
 // simple version of std::span (C++20)
 //
 // only valid for contiguous sequences of elements (vectors or arrays)
 // of any type Type (except std::vector<bool>?)
 
-template <typename Type = char>
-class Span {
+template <typename Type = char> class Span {
 public:
-  explicit Span(Type * start, std::size_t const length)
-    : start_ {start},
-      length_ {length} {
+  explicit Span(Type *start, std::size_t const length)
+      : start_{start}, length_{length} {
     assert(start != nullptr);
     assert(length <= max_ptrdiff);
   }
 
-  explicit Span(Type const * start, std::size_t const length)
-    : start_ {const_cast<Type *>(start)},
-      length_ {length} {
+  explicit Span(Type const *start, std::size_t const length)
+      : start_{const_cast<Type *>(start)}, length_{length} {
     assert(start != nullptr);
     assert(length <= max_ptrdiff);
   }
 
   // Operators
-  auto operator==(Span<Type> const & other) const -> bool {
-    return size() == other.size()
-      and std::equal(cbegin(), cend(), other.cbegin());
+  auto operator==(Span<Type> const &other) const -> bool {
+    return size() == other.size() and
+           std::equal(cbegin(), cend(), other.cbegin());
   }
   // refactoring: std::lexicographical works only for char and int?
-  auto operator<(Span<Type> const & other) const -> bool {
-    return std::lexicographical_compare(cbegin(), cend(),
-                                        other.cbegin(), other.cend());
+  auto operator<(Span<Type> const &other) const -> bool {
+    return std::lexicographical_compare(cbegin(), cend(), other.cbegin(),
+                                        other.cend());
   }
 
   // Iterators
@@ -123,9 +118,7 @@ public:
     auto const distance = static_cast<std::ptrdiff_t>(size());
     return std::next(data(), distance);
   }
-  auto cend() const -> Type const * {
-    return end();
-  }
+  auto cend() const -> Type const * { return end(); }
   auto rbegin() const -> std::reverse_iterator<Type *> {
     return std::reverse_iterator<Type *>(end());
   }
@@ -165,11 +158,12 @@ public:
   auto empty() const -> bool { return size() == 0; }
 
   // Subviews
-  auto subspan(std::size_t const offset, std::size_t const count) const -> Span {
+  auto subspan(std::size_t const offset, std::size_t const count) const
+      -> Span {
     assert(offset <= size());
     assert(count <= size() - offset);
     auto const distance = static_cast<std::ptrdiff_t>(offset);
-    auto * new_start = std::next(data(), distance);
+    auto *new_start = std::next(data(), distance);
     return Span{new_start, count};
   }
   auto first(std::size_t const count) const -> Span {
@@ -187,10 +181,9 @@ public:
   }
 
 private:
-  Type * start_ {};
-  std::size_t length_ {};
+  Type *start_{};
+  std::size_t length_{};
 };
-
 
 // tests:
 
@@ -198,9 +191,9 @@ private:
 // #include <vector>
 
 // auto main() -> int {
-//   std::vector<char> v = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
-//   auto s = Span<char>{v.data(), 5};
-//   assert(s.size() == 5);
+//   std::vector<char> v = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+//   'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y',
+//   'z'}; auto s = Span<char>{v.data(), 5}; assert(s.size() == 5);
 //   assert(s.size_bytes() == 5);
 //   assert(! s.empty());
 //   assert(s.front() == 'a');

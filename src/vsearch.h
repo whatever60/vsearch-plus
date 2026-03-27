@@ -68,6 +68,7 @@
 #include "config.h"
 #endif
 
+#include <cassert>
 #include <cctype>
 #include <cfloat>
 #include <cinttypes>
@@ -75,22 +76,21 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
-#include <cstdio>  // std::size_t
+#include <cstdio> // std::size_t
 #include <cstdlib>
 #include <cstring>
-#include <ctime>  // replace with std::chrono
+#include <ctime> // replace with std::chrono
+#include <limits>
 #include <map>
 #include <set>
 #include <string>
-#include <cassert>
-#include <limits>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>  // refactoring: redundant with <ctime>?
-#include <pthread.h>
-#include <getopt.h>
 #include <fcntl.h>
+#include <getopt.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <sys/time.h> // refactoring: redundant with <ctime>?
+#include <sys/types.h>
 #include <unistd.h>
 
 #define PROG_NAME PACKAGE
@@ -123,31 +123,30 @@
 #include <simde/x86/avx512.h>
 #endif
 
-
 #ifdef _WIN32
 
 #define PROG_OS "win"
-#include <windows.h>
 #include <psapi.h>
 #include <shlwapi.h>
+#include <windows.h>
 
 #elif __APPLE__
 
 #define PROG_OS "macos"
-#include <sys/sysctl.h>
 #include <sys/resource.h>
+#include <sys/sysctl.h>
 
 #elif __linux__
 
 #define PROG_OS "linux"
-#include <sys/sysinfo.h>
 #include <sys/resource.h>
+#include <sys/sysinfo.h>
 
 #elif __FreeBSD__
 
 #define PROG_OS "freebsd"
-#include <sys/sysinfo.h>
 #include <sys/resource.h>
+#include <sys/sysinfo.h>
 
 #elif __NetBSD__
 
@@ -160,11 +159,10 @@
 #else
 
 #define PROG_OS "unknown"
-#include <sys/sysinfo.h>
 #include <sys/resource.h>
+#include <sys/sysinfo.h>
 
 #endif
-
 
 #define PROG_ARCH PROG_OS "_" PROG_CPU
 
@@ -183,16 +181,16 @@
 #include "city.h"
 #include "sha1.h"
 
-#include "arch.h"  // TODO: rename to operating_systems.h
-#include "util.h"
-#include "db.h"
-#include "searchcore.h"
-#include "results.h"
+#include "arch.h" // TODO: rename to operating_systems.h
 #include "cpu.h"
-#include "fastx.h"
+#include "db.h"
+#include "dbhash.h"
 #include "fasta.h"
 #include "fastq.h"
-#include "dbhash.h"
+#include "fastx.h"
+#include "results.h"
+#include "searchcore.h"
+#include "util.h"
 
 /* options */
 
@@ -223,85 +221,85 @@ extern bool opt_sizeout;
 extern bool opt_xee;
 extern bool opt_xlength;
 extern bool opt_xsize;
-extern char * opt_alnout;
-extern char * opt_biomout;
-extern char * opt_blast6out;
-extern char * opt_borderline;
-extern char * opt_centroids;
-extern char * opt_chimeras;
-extern char * opt_chimeras_r2;
-extern char * opt_chimeras_tsv;
-extern char * opt_chimeras_denovo;
-extern char * opt_cluster_fast;
-extern char * opt_cluster_size;
-extern char * opt_cluster_smallmem;
-extern char * opt_cluster_unoise;
-extern char * opt_clusters;
-extern char * opt_consout;
-extern char * opt_db;
-extern char * opt_db2;
-extern char * opt_dbmatched;
-extern char * opt_dbmatched2;
-extern char * opt_dbnotmatched;
-extern char * opt_dbnotmatched2;
-extern char * opt_eetabbedout;
-extern char * opt_fastaout;
-extern char * opt_fastaout2;
-extern char * opt_fastaout_discarded;
-extern char * opt_fastaout_discarded2;
-extern char * opt_fastaout_discarded_rev;
-extern char * opt_fastaout_notmerged_fwd;
-extern char * opt_fastaout_notmerged_rev;
-extern char * opt_fastaout_rev;
-extern char * opt_fastapairs;
-extern char * opt_fastq_convert;
-extern char * opt_fastqout;
-extern char * opt_fastqout2;
-extern char * opt_fastqout_discarded;
-extern char * opt_fastqout_discarded2;
-extern char * opt_fastqout_discarded_rev;
-extern char * opt_fastqout_rev;
-extern char * opt_fastqout_notmerged_fwd;
-extern char * opt_fastqout_notmerged_rev;
-extern char * opt_label;
-extern char * opt_label_suffix;
-extern char * opt_labels;
-extern char * opt_label_word;
-extern char * opt_label_words;
-extern char * opt_label_field;
-extern char * opt_lcaout;
-extern char * opt_log;
-extern char * opt_matched;
-extern char * opt_matched2;
-extern char * opt_mothur_shared_out;
-extern char * opt_msaout;
-extern char * opt_nonchimeras;
-extern char * opt_nonchimeras_r2;
-extern char * opt_nonchimeras_tsv;
-extern char * opt_notmatched;
-extern char * opt_notmatched2;
-extern char * opt_notmatchedfq;
-extern char * opt_otutabout;
-extern char * opt_output;
-extern char * opt_pattern;
-extern char * opt_profile;
-extern char * opt_qsegout;
-extern char * opt_relabel;
-extern char * opt_reverse;
-extern char * opt_samout;
-extern char * opt_sample;
-extern char * opt_tabbedout;
-extern char * opt_tsegout;
-extern char * opt_uc;
-extern char * opt_uchime2_denovo;
-extern char * opt_uchime3_denovo;
-extern char * opt_uchime_denovo;
-extern char * opt_uchime_ref;
-extern char * opt_uchimealns;
-extern char * opt_uchimeout;
-extern char * opt_userout;
-extern char * opt_unknown_name;
-extern double * opt_ee_cutoffs_values;
+extern char *opt_alnout;
+extern char *opt_biomout;
+extern char *opt_blast6out;
+extern char *opt_borderline;
+extern char *opt_centroids;
+extern char *opt_chimeras;
+extern char *opt_chimeras_r2;
+extern char *opt_chimeras_tsv;
+extern char *opt_chimeras_denovo;
+extern char *opt_cluster_fast;
+extern char *opt_cluster_size;
+extern char *opt_cluster_smallmem;
+extern char *opt_cluster_unoise;
+extern char *opt_clusters;
+extern char *opt_consout;
+extern char *opt_db;
+extern char *opt_db2;
+extern char *opt_dbmatched;
+extern char *opt_dbmatched2;
+extern char *opt_dbnotmatched;
+extern char *opt_dbnotmatched2;
+extern char *opt_eetabbedout;
+extern char *opt_fastaout;
+extern char *opt_fastaout2;
+extern char *opt_fastaout_discarded;
+extern char *opt_fastaout_discarded2;
+extern char *opt_fastaout_discarded_rev;
+extern char *opt_fastaout_notmerged_fwd;
+extern char *opt_fastaout_notmerged_rev;
+extern char *opt_fastaout_rev;
+extern char *opt_fastapairs;
+extern char *opt_fastq_convert;
+extern char *opt_fastqout;
+extern char *opt_fastqout2;
+extern char *opt_fastqout_discarded;
+extern char *opt_fastqout_discarded2;
+extern char *opt_fastqout_discarded_rev;
+extern char *opt_fastqout_rev;
+extern char *opt_fastqout_notmerged_fwd;
+extern char *opt_fastqout_notmerged_rev;
+extern char *opt_label;
+extern char *opt_label_suffix;
+extern char *opt_labels;
+extern char *opt_label_word;
+extern char *opt_label_words;
+extern char *opt_label_field;
+extern char *opt_lcaout;
+extern char *opt_log;
+extern char *opt_matched;
+extern char *opt_matched2;
+extern char *opt_mothur_shared_out;
+extern char *opt_msaout;
+extern char *opt_nonchimeras;
+extern char *opt_nonchimeras_r2;
+extern char *opt_nonchimeras_tsv;
+extern char *opt_notmatched;
+extern char *opt_notmatched2;
+extern char *opt_notmatchedfq;
+extern char *opt_otutabout;
+extern char *opt_output;
+extern char *opt_pattern;
+extern char *opt_profile;
+extern char *opt_qsegout;
+extern char *opt_relabel;
+extern char *opt_reverse;
+extern char *opt_samout;
+extern char *opt_sample;
+extern char *opt_tabbedout;
+extern char *opt_tsegout;
+extern char *opt_uc;
+extern char *opt_uchime2_denovo;
+extern char *opt_uchime3_denovo;
+extern char *opt_uchime_denovo;
+extern char *opt_uchime_ref;
+extern char *opt_uchimealns;
+extern char *opt_uchimeout;
+extern char *opt_userout;
+extern char *opt_unknown_name;
+extern double *opt_ee_cutoffs_values;
 extern double opt_abskew;
 extern double opt_chimeras_diff_pct;
 extern double opt_dn;
@@ -410,7 +408,7 @@ extern int64_t opt_rowlen;
 extern int64_t opt_sample_size;
 extern int64_t opt_self;
 extern int64_t opt_selfid;
-extern int64_t opt_strand;  // used in pthread functions
+extern int64_t opt_strand; // used in pthread functions
 extern int64_t opt_subseq_start;
 extern int64_t opt_subseq_end;
 extern int64_t opt_threads;
@@ -431,7 +429,7 @@ extern int64_t popcnt_present;
 extern int64_t avx_present;
 extern int64_t avx2_present;
 
-extern std::FILE * fp_log;
+extern std::FILE *fp_log;
 
 constexpr int64_t default_fasta_width = 80;
 constexpr int64_t default_fastq_tail = 4;
@@ -441,91 +439,93 @@ constexpr char alternative_ascii_offset = 64;
 constexpr auto dbl_max = std::numeric_limits<double>::max();
 constexpr int64_t default_max_quality = 41;
 constexpr auto int64_max = std::numeric_limits<int64_t>::max();
-std::string const default_quality_padding = "IIIIIIII";  // Q40 with an offset of 33
-std::string const alternative_quality_padding = "hhhhhhhh";  // Q40 with an offset of 64
+std::string const default_quality_padding =
+    "IIIIIIII"; // Q40 with an offset of 33
+std::string const alternative_quality_padding =
+    "hhhhhhhh"; // Q40 with an offset of 64
 std::string const default_sequence_padding = "NNNNNNNN";
 
 struct Parameters {
   std::string prog_header;
   std::string command_line;
-  char * opt_allpairs_global = nullptr;
-  char * opt_chimeras_denovo = nullptr;
-  char * opt_cluster_fast = nullptr;
-  char * opt_cluster_size = nullptr;
-  char * opt_cluster_smallmem = nullptr;
-  char * opt_cluster_unoise = nullptr;
-  char * opt_cut = nullptr;
+  char *opt_allpairs_global = nullptr;
+  char *opt_chimeras_denovo = nullptr;
+  char *opt_cluster_fast = nullptr;
+  char *opt_cluster_size = nullptr;
+  char *opt_cluster_smallmem = nullptr;
+  char *opt_cluster_unoise = nullptr;
+  char *opt_cut = nullptr;
   std::string opt_cut_pattern;
-  char * opt_db = nullptr;
-  char * opt_db2 = nullptr;
-  char * opt_dbmatched = nullptr;
-  char * opt_dbmatched2 = nullptr;
-  char * opt_dbnotmatched = nullptr;
-  char * opt_dbnotmatched2 = nullptr;
-  char * opt_derep_fulllength = nullptr;
-  char * opt_derep_id = nullptr;
-  char * opt_derep_prefix = nullptr;
-  char * opt_derep_smallmem = nullptr;
-  char * opt_fasta2fastq = nullptr;
-  char * opt_fastaout = nullptr;
-  char * opt_fastaout2 = nullptr;
-  char * opt_fastaout_rev = nullptr;
-  char * opt_fastaout_discarded = nullptr;
-  char * opt_fastaout_discarded2 = nullptr;
-  char * opt_fastaout_discarded_rev = nullptr;
-  char * opt_fastq_chars = nullptr;
-  char * opt_fastq_convert = nullptr;
-  char * opt_fastq_eestats2 = nullptr;
-  char * opt_fastq_eestats = nullptr;
-  char * opt_fastq_filter = nullptr;
-  char * opt_fastq_join = nullptr;
-  char * opt_fastq_mergepairs = nullptr;
-  char * opt_fastq_stats = nullptr;
-  char * opt_fastqout = nullptr;
-  char * opt_fastqout2 = nullptr;
-  char * opt_fastqout_rev = nullptr;
-  char * opt_fastqout_discarded = nullptr;
-  char * opt_fastqout_discarded2 = nullptr;
-  char * opt_fastqout_discarded_rev = nullptr;
-  char * opt_fastx_filter = nullptr;
-  char * opt_fastx_getseq = nullptr;
-  char * opt_fastx_getseqs = nullptr;
-  char * opt_fastx_getsubseq = nullptr;
-  char * opt_fastx_mask = nullptr;
-  char * opt_fastx_revcomp = nullptr;
-  char * opt_fastx_subsample = nullptr;
-  char * opt_fastx_uniques = nullptr;
+  char *opt_db = nullptr;
+  char *opt_db2 = nullptr;
+  char *opt_dbmatched = nullptr;
+  char *opt_dbmatched2 = nullptr;
+  char *opt_dbnotmatched = nullptr;
+  char *opt_dbnotmatched2 = nullptr;
+  char *opt_derep_fulllength = nullptr;
+  char *opt_derep_id = nullptr;
+  char *opt_derep_prefix = nullptr;
+  char *opt_derep_smallmem = nullptr;
+  char *opt_fasta2fastq = nullptr;
+  char *opt_fastaout = nullptr;
+  char *opt_fastaout2 = nullptr;
+  char *opt_fastaout_rev = nullptr;
+  char *opt_fastaout_discarded = nullptr;
+  char *opt_fastaout_discarded2 = nullptr;
+  char *opt_fastaout_discarded_rev = nullptr;
+  char *opt_fastq_chars = nullptr;
+  char *opt_fastq_convert = nullptr;
+  char *opt_fastq_eestats2 = nullptr;
+  char *opt_fastq_eestats = nullptr;
+  char *opt_fastq_filter = nullptr;
+  char *opt_fastq_join = nullptr;
+  char *opt_fastq_mergepairs = nullptr;
+  char *opt_fastq_stats = nullptr;
+  char *opt_fastqout = nullptr;
+  char *opt_fastqout2 = nullptr;
+  char *opt_fastqout_rev = nullptr;
+  char *opt_fastqout_discarded = nullptr;
+  char *opt_fastqout_discarded2 = nullptr;
+  char *opt_fastqout_discarded_rev = nullptr;
+  char *opt_fastx_filter = nullptr;
+  char *opt_fastx_getseq = nullptr;
+  char *opt_fastx_getseqs = nullptr;
+  char *opt_fastx_getsubseq = nullptr;
+  char *opt_fastx_mask = nullptr;
+  char *opt_fastx_revcomp = nullptr;
+  char *opt_fastx_subsample = nullptr;
+  char *opt_fastx_uniques = nullptr;
   std::string opt_join_padgap = default_sequence_padding;
   std::string opt_join_padgapq = default_quality_padding;
-  char * opt_label_suffix = nullptr;
-  char * opt_log = nullptr;
-  char * opt_makeudb_usearch = nullptr;
-  char * opt_maskfasta = nullptr;
-  char * opt_orient = nullptr;
-  char * opt_output = nullptr;
-  char * opt_relabel = nullptr;
-  char * opt_rereplicate = nullptr;
-  char * opt_reverse = nullptr;
-  char * opt_sample = nullptr;
-  char * opt_search_exact = nullptr;
-  char * opt_sff_convert = nullptr;
-  char * opt_shuffle = nullptr;
-  char * opt_sintax = nullptr;
-  char * opt_sortbylength = nullptr;
-  char * opt_sortbysize = nullptr;
-  char * opt_tabbedout = nullptr;
-  char * opt_uc = nullptr;
-  char * opt_uchime2_denovo = nullptr;
-  char * opt_uchime3_denovo = nullptr;
-  char * opt_uchime_denovo = nullptr;
-  char * opt_uchime_ref = nullptr;
-  char * opt_udb2fasta = nullptr;
-  char * opt_udbinfo = nullptr;
-  char * opt_udbstats = nullptr;
-  char * opt_unknown_name = nullptr;
-  char * opt_usearch_global = nullptr;
-  char * progname = nullptr;  // refactoring: unused?
-  std::FILE * fp_log = nullptr;
+  char *opt_label_suffix = nullptr;
+  char *opt_log = nullptr;
+  char *opt_makeudb_usearch = nullptr;
+  char *opt_maskfasta = nullptr;
+  char *opt_orient = nullptr;
+  char *opt_output = nullptr;
+  char *opt_relabel = nullptr;
+  char *opt_rereplicate = nullptr;
+  char *opt_reverse = nullptr;
+  char *opt_sample = nullptr;
+  char *opt_search_exact = nullptr;
+  char *opt_sff_convert = nullptr;
+  char *opt_shuffle = nullptr;
+  char *opt_sintax = nullptr;
+  char *opt_sortbylength = nullptr;
+  char *opt_sortbysize = nullptr;
+  char *opt_tabbedout = nullptr;
+  char *opt_uc = nullptr;
+  char *opt_uchime2_denovo = nullptr;
+  char *opt_uchime3_denovo = nullptr;
+  char *opt_uchime_denovo = nullptr;
+  char *opt_uchime_ref = nullptr;
+  char *opt_udb2fasta = nullptr;
+  char *opt_udbinfo = nullptr;
+  char *opt_udbstats = nullptr;
+  char *opt_unknown_name = nullptr;
+  char *opt_usearch_global = nullptr;
+  char *progname = nullptr; // refactoring: unused?
+  std::FILE *fp_log = nullptr;
   double opt_fastq_truncee_rate = dbl_max;
   double opt_max_unmasked_pct = 100.0;
   double opt_min_unmasked_pct = 0;
@@ -546,7 +546,7 @@ struct Parameters {
   int64_t opt_minseqlength = -1;
   int64_t opt_minsize = 0;
   int64_t opt_minuniquesize = 1;
-  int64_t opt_qmask = 1;  // MASK_DUST
+  int64_t opt_qmask = 1; // MASK_DUST
   int64_t opt_randseed = 0;
   int64_t opt_sample_size = 0;
   int64_t opt_threads = 0;

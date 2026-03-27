@@ -61,19 +61,18 @@
 #include <cstdint> // uint64_t
 #include <cstdio>  // std::FILE, std::size_t
 
-
 constexpr auto md5_digest_length = 16;
 constexpr auto sha1_digest_length = 20;
 constexpr auto len_hex_dig_md5 = (2 * md5_digest_length) + 1;
 constexpr auto len_hex_dig_sha1 = (2 * sha1_digest_length) + 1;
 
-auto xstrdup(char const * src) -> char *;
-auto xsprintf(char * * ret, char const * format, ...) -> int;
-auto hash_cityhash64(char const * sequence, uint64_t length) -> uint64_t;
-auto hash_cityhash128(char const * sequence, uint64_t length) -> uint128;
+auto xstrdup(char const *src) -> char *;
+auto xsprintf(char **ret, char const *format, ...) -> int;
+auto hash_cityhash64(char const *sequence, uint64_t length) -> uint64_t;
+auto hash_cityhash128(char const *sequence, uint64_t length) -> uint128;
 auto show_rusage() -> void;
 
-auto progress_init(char const * prompt, uint64_t size) -> void;
+auto progress_init(char const *prompt, uint64_t size) -> void;
 auto progress_update(uint64_t progress) -> void;
 auto progress_done() -> void;
 
@@ -81,14 +80,17 @@ auto random_init() -> void;
 auto random_int(int64_t upper_limit) -> int64_t;
 auto random_ulong(uint64_t upper_limit) -> uint64_t;
 
-auto string_normalize(char * normalized, char const * raw_seq, unsigned int len) -> void;
+auto string_normalize(char *normalized, char const *raw_seq, unsigned int len)
+    -> void;
 
-auto reverse_complement(char * rc_seq, char const * seq, int64_t len) -> void;
+auto reverse_complement(char *rc_seq, char const *seq, int64_t len) -> void;
 
-auto get_hex_seq_digest_sha1(char * hex, char const * seq, int seqlen) -> void;
-auto get_hex_seq_digest_md5(char * hex, char const * seq, int seqlen) -> void;
+auto get_hex_seq_digest_sha1(char *hex, char const *seq, int seqlen) -> void;
+auto get_hex_seq_digest_md5(char *hex, char const *seq, int seqlen) -> void;
 
-auto fprint_seq_digest_sha1(std::FILE * output_handle, char const * seq, int seqlen) -> void;
-auto fprint_seq_digest_md5(std::FILE * output_handle, char const * seq, int seqlen) -> void;
+auto fprint_seq_digest_sha1(std::FILE *output_handle, char const *seq,
+                            int seqlen) -> void;
+auto fprint_seq_digest_md5(std::FILE *output_handle, char const *seq,
+                           int seqlen) -> void;
 
-auto fopen_output(char const * filename) -> std::FILE *;
+auto fopen_output(char const *filename) -> std::FILE *;

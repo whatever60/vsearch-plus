@@ -60,12 +60,11 @@
 
 #include <string>
 
-
 class xstring {
 private:
   std::string string_;
 
- public:
+public:
   xstring() = default;
 
   auto add_d(int const runlength) -> void {
@@ -78,9 +77,7 @@ private:
     string_ += operation;
   }
 
-  auto clear() -> void {
-    string_.clear();
-  }
+  auto clear() -> void { string_.clear(); }
 
   auto c_str() -> char const * {
     // return pointer to a null-terminated character array

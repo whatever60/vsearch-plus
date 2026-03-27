@@ -61,11 +61,9 @@
 #include "vsearch.h"
 #include <cstdint> // uint64_t
 #include <cstdio>  // std::fprintf
-#include <cstdlib>  // std::exit, EXIT_FAILURE
+#include <cstdlib> // std::exit, EXIT_FAILURE
 
-
-__attribute__((noreturn))
-auto fatal(char const * message) -> void {
+__attribute__((noreturn)) auto fatal(char const *message) -> void {
   std::fprintf(stderr, "\n\n");
   std::fprintf(stderr, "Fatal error: %s\n", message);
 
@@ -77,10 +75,8 @@ auto fatal(char const * message) -> void {
   std::exit(EXIT_FAILURE);
 }
 
-
-__attribute__((noreturn))
-auto fatal(char const * format,
-           char const * message) -> void {
+__attribute__((noreturn)) auto fatal(char const *format, char const *message)
+    -> void {
   std::fprintf(stderr, "\n\nFatal error: ");
   std::fprintf(stderr, format, message);
   std::fprintf(stderr, "\n");
@@ -94,12 +90,9 @@ auto fatal(char const * format,
   std::exit(EXIT_FAILURE);
 }
 
-
 // used in fastx.cc
-__attribute__((noreturn))
-auto fatal(char const * format,
-           char const symbol,
-           uint64_t const line_number) -> void {
+__attribute__((noreturn)) auto fatal(char const *format, char const symbol,
+                                     uint64_t const line_number) -> void {
   std::fprintf(stderr, "\n\nFatal error: ");
   std::fprintf(stderr, format, symbol, line_number);
   std::fprintf(stderr, "\n");

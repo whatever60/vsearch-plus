@@ -24,7 +24,6 @@
   We route paired cluster_unoise calls through this entrypoint first,
   then replace internals incrementally with stock-callstack-parity code.
 */
-auto cluster_unoise_paired(struct Parameters const & parameters) -> void
-{
+auto cluster_unoise_paired(struct Parameters const &parameters) -> void {
   tav_cluster_unoise(parameters);
 }

@@ -60,13 +60,14 @@
 
 #include "cigar_operations.hpp"
 #include "span.hpp"
+#include <utility> // std::pair
 #include <vector>
-#include <utility>  // std::pair
 
+auto find_runlength_of_leftmost_operation(char const *first_character,
+                                          char **first_non_digit) -> long long;
 
-auto find_runlength_of_leftmost_operation(char const * first_character,
-                                          char ** first_non_digit) -> long long;
+auto parse_cigar_string(Span<char> cigar_string)
+    -> std::vector<std::pair<Operation, long long>>;
 
-auto parse_cigar_string(Span<char> cigar_string) -> std::vector<std::pair<Operation, long long>>;
-
-auto print_uncompressed_cigar(std::FILE * output_handle, Span<char> cigar_string) -> void;
+auto print_uncompressed_cigar(std::FILE *output_handle, Span<char> cigar_string)
+    -> void;

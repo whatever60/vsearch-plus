@@ -58,27 +58,22 @@
 
 */
 
-#include "vsearch.h"
 #include "utils/check_output_filehandle.hpp"
 #include "utils/fatal.hpp"
 #include "utils/maps.hpp"
 #include "utils/open_file.hpp"
+#include "vsearch.h"
 #include <cinttypes> // macros PRIu64 and PRId64
-#include <cstdio>  // std::FILE, std::fprintf
-#include <cstdint>  // int64_t
-
+#include <cstdint>   // int64_t
+#include <cstdio>    // std::FILE, std::fprintf
 
 // anonymous namespace: limit visibility and usage to this translation unit
-namespace {
+namespace {} // end of anonymous namespace
 
-}  // end of anonymous namespace
-
-
-auto rereplicate(struct Parameters const & parameters) -> void
-{
+auto rereplicate(struct Parameters const &parameters) -> void {
   auto const output_handle = open_output_file(parameters.opt_output);
   check_mandatory_output_handle(parameters.opt_output, (not output_handle));
-  auto * input_handle = fasta_open(parameters.opt_rereplicate);
+  auto *input_handle = fasta_open(parameters.opt_rereplicate);
   auto const filesize = static_cast<int64_t>(fasta_get_size(input_handle));
 
   progress_init("Rereplicating", filesize);
@@ -87,52 +82,48 @@ auto rereplicate(struct Parameters const & parameters) -> void
   auto missing_abundance = false;
   int64_t n_reads = 0;
   auto const truncateatspace = not parameters.opt_notrunclabels;
-  while (fasta_next(input_handle, truncateatspace, chrmap_no_change_vector.data()))
-    {
-      ++n_amplicons;
-      auto abundance = fasta_get_abundance_and_presence(input_handle);
-      if (abundance == 0)
-        {
-          missing_abundance = true;
-          abundance = 1;
-        }
-
-      for (int64_t i = 0; i < abundance; ++i)
-        {
-          ++n_reads;
-          fasta_print_general(output_handle.get(),
-                              nullptr,
-                              fasta_get_sequence(input_handle),
-                              static_cast<int>(fasta_get_sequence_length(input_handle)),
-                              fasta_get_header(input_handle),
-                              static_cast<int>(fasta_get_header_length(input_handle)),
-                              1,
-                              static_cast<int>(n_reads),
-                              -1.0,
-                              -1, -1, nullptr, 0.0);
-        }
-
-      progress_update(fasta_get_position(input_handle));
+  while (fasta_next(input_handle, truncateatspace,
+                    chrmap_no_change_vector.data())) {
+    ++n_amplicons;
+    auto abundance = fasta_get_abundance_and_presence(input_handle);
+    if (abundance == 0) {
+      missing_abundance = true;
+      abundance = 1;
     }
+
+    for (int64_t i = 0; i < abundance; ++i) {
+      ++n_reads;
+      fasta_print_general(
+          output_handle.get(), nullptr, fasta_get_sequence(input_handle),
+          static_cast<int>(fasta_get_sequence_length(input_handle)),
+          fasta_get_header(input_handle),
+          static_cast<int>(fasta_get_header_length(input_handle)), 1,
+          static_cast<int>(n_reads), -1.0, -1, -1, nullptr, 0.0);
+    }
+
+    progress_update(fasta_get_position(input_handle));
+  }
   progress_done();
 
-  if (not parameters.opt_quiet)
-    {
-      if (missing_abundance)
-        {
-          std::fprintf(stderr, "WARNING: Missing abundance information for some input sequences, assumed 1\n");
-        }
-      std::fprintf(stderr, "Rereplicated %" PRId64 " reads from %" PRId64 " amplicons\n", n_reads, n_amplicons);
+  if (not parameters.opt_quiet) {
+    if (missing_abundance) {
+      std::fprintf(stderr, "WARNING: Missing abundance information for some "
+                           "input sequences, assumed 1\n");
     }
+    std::fprintf(stderr,
+                 "Rereplicated %" PRId64 " reads from %" PRId64 " amplicons\n",
+                 n_reads, n_amplicons);
+  }
 
-  if (parameters.opt_log != nullptr)
-    {
-      if (missing_abundance)
-        {
-          std::fprintf(stderr, "WARNING: Missing abundance information for some input sequences, assumed 1\n");
-        }
-      std::fprintf(fp_log, "Rereplicated %" PRId64 " reads from %" PRId64 " amplicons\n", n_reads, n_amplicons);
+  if (parameters.opt_log != nullptr) {
+    if (missing_abundance) {
+      std::fprintf(stderr, "WARNING: Missing abundance information for some "
+                           "input sequences, assumed 1\n");
     }
+    std::fprintf(fp_log,
+                 "Rereplicated %" PRId64 " reads from %" PRId64 " amplicons\n",
+                 n_reads, n_amplicons);
+  }
 
   fasta_close(input_handle);
 }

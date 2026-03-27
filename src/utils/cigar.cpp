@@ -61,13 +61,13 @@
 #include "cigar_operations.hpp"
 #include "fatal.hpp"
 #include "span.hpp"
-#include <algorithm>  // std::max
+#include <algorithm> // std::max
 #include <cassert>
-#include <cstdio>  // std::size_t
+#include <cstdio>   // std::size_t
 #include <cstdlib>  // std::strtoll
-#include <iterator>  // std::next
-#include <vector>
+#include <iterator> // std::next
 #include <utility>  // std::pair
+#include <vector>
 
 #ifndef NDEBUG
 #include <limits>
@@ -79,109 +79,107 @@
 // bugprone-easily-swappable-parameters warning. Merge with
 // cigar_operations.hpp
 //
-//  - add the possibility to return a mirror cigar string (query viewpoint: I -> D, D -> I)
+//  - add the possibility to return a mirror cigar string (query viewpoint: I ->
+//  D, D -> I)
 
 // CIGAR string example: 3M2I3MD
 // document the format here, and in vsearch-cigar(5)
 // also 'X' (mismatch) and 'N'
 
-
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {
 
-  auto convert_to_operation(char const operation) -> Operation {
-    assert(operation == 'M' or operation == 'I' or operation == 'D');
-    if (operation == 'I') {
-      return Operation::insertion;
-    }
-    if (operation == 'D') {
-      return Operation::deletion;
-    }
-    return Operation::match;
+auto convert_to_operation(char const operation) -> Operation {
+  assert(operation == 'M' or operation == 'I' or operation == 'D');
+  if (operation == 'I') {
+    return Operation::insertion;
   }
-
-
-  auto convert_from_operation(Operation const operation) -> char {
-    switch (operation) {
-    case Operation::match:
-      return 'M';
-      break;
-    case Operation::deletion:
-      return 'D';
-      break;
-    case Operation::insertion:
-      return 'I';
-      break;
-    }
-    // C++23 refactoring: default: std::unreachable();
-    __builtin_unreachable();
+  if (operation == 'D') {
+    return Operation::deletion;
   }
+  return Operation::match;
+}
 
-}  // end of anonymous namespace
+auto convert_from_operation(Operation const operation) -> char {
+  switch (operation) {
+  case Operation::match:
+    return 'M';
+    break;
+  case Operation::deletion:
+    return 'D';
+    break;
+  case Operation::insertion:
+    return 'I';
+    break;
+  }
+  // C++23 refactoring: default: std::unreachable();
+  __builtin_unreachable();
+}
 
+} // end of anonymous namespace
 
 // duplicate: msa.cc
-auto find_runlength_of_leftmost_operation(char const * first_character,
-                                          char ** first_non_digit) -> long long {
+auto find_runlength_of_leftmost_operation(char const *first_character,
+                                          char **first_non_digit) -> long long {
   // std::strtoll:
   // - start from the 'first_character' pointed to,
   // - consume as many characters as possible to form a valid integer,
   // - advance pointer to the first non-digit character,
   // - return the valid integer
-  // - if there is no valid integer: pointer is not advanced and strtoll() returns zero
+  // - if there is no valid integer: pointer is not advanced and strtoll()
+  // returns zero
   static constexpr auto decimal_base = 10;
-  auto const runlength = std::strtoll(first_character,
-                                      first_non_digit,
-                                      decimal_base);
+  auto const runlength =
+      std::strtoll(first_character, first_non_digit, decimal_base);
   assert(runlength <= std::numeric_limits<int>::max());
 
   // in cigar strings, runlength of 1 are implicit (no digit)
-  return std::max(runlength, 1LL);  // is in [1, INT_MAX]
+  return std::max(runlength, 1LL); // is in [1, INT_MAX]
 }
-
 
 // refactoring C++23: std::pair generator
-auto parse_cigar_string(Span<char> const cigar_string) -> std::vector<std::pair<Operation, long long>> {
+auto parse_cigar_string(Span<char> const cigar_string)
+    -> std::vector<std::pair<Operation, long long>> {
   std::vector<std::pair<Operation, long long>> parsed_cigar;
 
-  auto * position = cigar_string.begin();
-  auto * cigar_end = cigar_string.end();
+  auto *position = cigar_string.begin();
+  auto *cigar_end = cigar_string.end();
 
-  while (position < cigar_end)
-    {
-      // Consume digits (if any), return the position of the
-      // first char (M, D, or I), store it, move cursor to the next byte.
-      auto ** next_operation = &position;
-      auto const run = find_runlength_of_leftmost_operation(position, next_operation);
-      // do not dereference if outside of cigar_string! (= missing operation!)
-      if (*next_operation >= cigar_end) {
-        // fail if ill-formed (ex: '12M1'), we could also silently skip over
-        fatal("ill-formed CIGAR string");
-      }
-      // operations: match (M), insertion (I), or deletion (D)
-      auto const operation = **next_operation;
-      position = std::next(*next_operation);
-      parsed_cigar.emplace_back(convert_to_operation(operation), run);
+  while (position < cigar_end) {
+    // Consume digits (if any), return the position of the
+    // first char (M, D, or I), store it, move cursor to the next byte.
+    auto **next_operation = &position;
+    auto const run =
+        find_runlength_of_leftmost_operation(position, next_operation);
+    // do not dereference if outside of cigar_string! (= missing operation!)
+    if (*next_operation >= cigar_end) {
+      // fail if ill-formed (ex: '12M1'), we could also silently skip over
+      fatal("ill-formed CIGAR string");
     }
+    // operations: match (M), insertion (I), or deletion (D)
+    auto const operation = **next_operation;
+    position = std::next(*next_operation);
+    parsed_cigar.emplace_back(convert_to_operation(operation), run);
+  }
   return parsed_cigar;
 }
-
 
 // refactoring: run-length decoding: this is not cigar-specific,
 // extract to its own header? check if I need a run-length encoding
 // function (see swarm:cigar.cc for an example)
-auto print_uncompressed_cigar(std::FILE * output_handle, Span<char> const cigar_string) -> void {
+auto print_uncompressed_cigar(std::FILE *output_handle,
+                              Span<char> const cigar_string) -> void {
   auto const cigar_pairs = parse_cigar_string(cigar_string);
-  for (auto const & a_pair: cigar_pairs) {
+  for (auto const &a_pair : cigar_pairs) {
     auto const operation = convert_from_operation(a_pair.first);
     auto const runlength = a_pair.second;
-    // refactoring? std::fprintf("%s", std::string(runlength, operation).c_str());
+    // refactoring? std::fprintf("%s", std::string(runlength,
+    // operation).c_str());
     for (auto i = 0LL; i < runlength; ++i) {
       static_cast<void>(std::fprintf(output_handle, "%c", operation));
     }
   }
 }
-
 
 // compiler explorer tests:
 

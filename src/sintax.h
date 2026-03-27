@@ -58,4 +58,4 @@
 
 */
 
-auto sintax(struct Parameters const & parameters) -> void;
+auto sintax(struct Parameters const &parameters) -> void;

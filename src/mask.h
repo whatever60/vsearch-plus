@@ -64,11 +64,10 @@ constexpr auto MASK_NONE = 0;
 constexpr auto MASK_DUST = 1;
 constexpr auto MASK_SOFT = 2;
 
+auto maskfasta(struct Parameters const &parameters) -> void;
+auto fastx_mask(struct Parameters const &parameters) -> void;
 
-auto maskfasta(struct Parameters const & parameters) -> void;
-auto fastx_mask(struct Parameters const & parameters) -> void;
-
-auto dust(char * seq, int len) -> void;
-auto hardmask(char * seq, int len) -> void;
+auto dust(char *seq, int len) -> void;
+auto hardmask(char *seq, int len) -> void;
 auto dust_all() -> void;
 auto hardmask_all() -> void;

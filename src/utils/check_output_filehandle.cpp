@@ -60,9 +60,9 @@
 
 #include "fatal.hpp"
 
-
-auto check_mandatory_fastq_output_handle(char const * filename,
-                                         bool const filehandle_is_empty) -> void {
+auto check_mandatory_fastq_output_handle(char const *filename,
+                                         bool const filehandle_is_empty)
+    -> void {
   if (filename == nullptr) {
     fatal("output file must be specified with --fastqout");
   }
@@ -71,8 +71,7 @@ auto check_mandatory_fastq_output_handle(char const * filename,
   }
 }
 
-
-auto check_mandatory_output_handle(char const * filename,
+auto check_mandatory_output_handle(char const *filename,
                                    bool const filehandle_is_empty) -> void {
   if (filename == nullptr) {
     fatal("output file must be specified with --output");
@@ -82,8 +81,7 @@ auto check_mandatory_output_handle(char const * filename,
   }
 }
 
-
-auto check_optional_output_handle(char const * filename,
+auto check_optional_output_handle(char const *filename,
                                   bool const filehandle_is_empty) -> void {
   if ((filename != nullptr) and filehandle_is_empty) {
     fatal("unable to open output file %s", filename);

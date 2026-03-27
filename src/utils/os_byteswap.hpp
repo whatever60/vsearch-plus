@@ -64,28 +64,25 @@
 #ifndef OS_BYTESWAP_HPP
 #define OS_BYTESWAP_HPP
 
-
 #if defined(_MSC_VER) || defined(_WIN32)
 
-#include <cstdint>  // uint16_t, uint32_t, uint64_t
+#include <cstdint> // uint16_t, uint32_t, uint64_t
 
 auto bswap_16(uint16_t bsx) noexcept -> uint16_t;
 
 auto bswap_32(uint32_t bsx) noexcept -> uint32_t;
 
 auto bswap_64(uint64_t bsx) noexcept -> uint64_t;
-
 
 #elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__)
 
-#include <cstdint>  // uint16_t, uint32_t, uint64_t
+#include <cstdint> // uint16_t, uint32_t, uint64_t
 
 auto bswap_16(uint16_t bsx) noexcept -> uint16_t;
 
 auto bswap_32(uint32_t bsx) noexcept -> uint32_t;
 
 auto bswap_64(uint64_t bsx) noexcept -> uint64_t;
-
 
 #else
 
@@ -94,6 +91,5 @@ auto bswap_64(uint64_t bsx) noexcept -> uint64_t;
 #include <byteswap.h>
 
 #endif
-
 
 #endif // OS_BYTESWAP_HPP

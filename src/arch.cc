@@ -58,47 +58,41 @@
 
 */
 
-#include "vsearch.h"
 #include "dynlibs.h"
 #include "utils/fatal.hpp"
-#include <algorithm>  // std::max
-#include <cstdio>  // std::FILE, std::size_t
-#include <cstdint>  // uint64_t
-#include <cstdlib>  // std::realloc, std::free
-
+#include "vsearch.h"
+#include <algorithm> // std::max
+#include <cstdint>   // uint64_t
+#include <cstdio>    // std::FILE, std::size_t
+#include <cstdlib>   // std::realloc, std::free
 
 constexpr auto vsearch_memalignment = 16;
 
-
-auto arch_get_memused() -> uint64_t
-{
+auto arch_get_memused() -> uint64_t {
 #ifdef _WIN32
 
   PROCESS_MEMORY_COUNTERS pmc;
-  GetProcessMemoryInfo(GetCurrentProcess(),
-                       &pmc,
+  GetProcessMemoryInfo(GetCurrentProcess(), &pmc,
                        sizeof(PROCESS_MEMORY_COUNTERS));
   return pmc.PeakWorkingSetSize;
 
 #else
 
   struct rusage r_usage;
-  getrusage(RUSAGE_SELF, & r_usage);
+  getrusage(RUSAGE_SELF, &r_usage);
 
-# ifdef __APPLE__
+#ifdef __APPLE__
   /* Mac: ru_maxrss gives the size in bytes */
   return r_usage.ru_maxrss;
-# else
+#else
   /* Linux: ru_maxrss gives the size in kilobytes  */
   return r_usage.ru_maxrss * 1024;
-# endif
+#endif
 
 #endif
 }
 
-
-auto arch_get_memtotal() -> uint64_t
-{
+auto arch_get_memtotal() -> uint64_t {
 #ifdef _WIN32
 
   MEMORYSTATUSEX ms;
@@ -108,10 +102,10 @@ auto arch_get_memtotal() -> uint64_t
 
 #elif defined(__APPLE__)
 
-  int mib [] = { CTL_HW, HW_MEMSIZE };
+  int mib[] = {CTL_HW, HW_MEMSIZE};
   int64_t ram = 0;
   std::size_t length = sizeof(ram);
-  if(sysctl(mib, 2, &ram, &length, NULL, 0) == -1)
+  if (sysctl(mib, 2, &ram, &length, NULL, 0) == -1)
     fatal("Cannot determine amount of RAM");
   return ram;
 
@@ -119,10 +113,9 @@ auto arch_get_memtotal() -> uint64_t
 
   int64_t const phys_pages = sysconf(_SC_PHYS_PAGES);
   int64_t const pagesize = sysconf(_SC_PAGESIZE);
-  if ((phys_pages == -1) or (pagesize == -1))
-    {
-      fatal("Cannot determine amount of RAM");
-    }
+  if ((phys_pages == -1) or (pagesize == -1)) {
+    fatal("Cannot determine amount of RAM");
+  }
   return pagesize * phys_pages;
 
 #else
@@ -135,9 +128,7 @@ auto arch_get_memtotal() -> uint64_t
 #endif
 }
 
-
-auto arch_get_cores() -> long
-{
+auto arch_get_cores() -> long {
 #ifdef _WIN32
   SYSTEM_INFO si;
   GetSystemInfo(&si);
@@ -147,9 +138,7 @@ auto arch_get_cores() -> long
 #endif
 }
 
-
-auto arch_get_user_system_time(double * user_time, double * system_time) -> void
-{
+auto arch_get_user_system_time(double *user_time, double *system_time) -> void {
   *user_time = 0;
   *system_time = 0;
 #ifdef _WIN32
@@ -165,50 +154,41 @@ auto arch_get_user_system_time(double * user_time, double * system_time) -> void
   *system_time = ul.QuadPart * 100.0e-9;
 #else
   struct rusage r_usage;
-  getrusage(RUSAGE_SELF, & r_usage);
-  * user_time = (r_usage.ru_utime.tv_sec * 1.0)
-    + (r_usage.ru_utime.tv_usec * 1.0e-6);
-  * system_time = (r_usage.ru_stime.tv_sec * 1.0)
-    + (r_usage.ru_stime.tv_usec * 1.0e-6);
+  getrusage(RUSAGE_SELF, &r_usage);
+  *user_time =
+      (r_usage.ru_utime.tv_sec * 1.0) + (r_usage.ru_utime.tv_usec * 1.0e-6);
+  *system_time =
+      (r_usage.ru_stime.tv_sec * 1.0) + (r_usage.ru_stime.tv_usec * 1.0e-6);
 #endif
 }
 
-
-auto arch_srandom() -> void
-{
+auto arch_srandom() -> void {
   /* initialize pseudo-random number generator */
   unsigned int seed = opt_randseed;
-  if (seed == 0)
-    {
+  if (seed == 0) {
 #ifdef _WIN32
-      srand(GetTickCount());
+    srand(GetTickCount());
 #else
-      auto const fd = open("/dev/urandom", O_RDONLY);
-      if (fd < 0)
-        {
-          fatal("Unable to open /dev/urandom");
-        }
-      if (read(fd, & seed, sizeof(seed)) < 0)
-        {
-          fatal("Unable to read from /dev/urandom");
-        }
-      close(fd);
-      srandom(seed);
-#endif
+    auto const fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) {
+      fatal("Unable to open /dev/urandom");
     }
-  else
-    {
+    if (read(fd, &seed, sizeof(seed)) < 0) {
+      fatal("Unable to read from /dev/urandom");
+    }
+    close(fd);
+    srandom(seed);
+#endif
+  } else {
 #ifdef _WIN32
-      srand(seed);
+    srand(seed);
 #else
-      srandom(seed);
+    srandom(seed);
 #endif
-    }
+  }
 }
 
-
-auto arch_random() -> uint64_t
-{
+auto arch_random() -> uint64_t {
 #ifdef _WIN32
   return rand();
 #else
@@ -216,74 +196,58 @@ auto arch_random() -> uint64_t
 #endif
 }
 
-
-auto xmalloc(std::size_t size) -> void *
-{
+auto xmalloc(std::size_t size) -> void * {
   static constexpr auto minimal_allocation = std::size_t{1};
   size = std::max(size, minimal_allocation);
-  void * ptr = nullptr;
+  void *ptr = nullptr;
 #ifdef _WIN32
   ptr = _aligned_malloc(size, vsearch_memalignment);
 #else
-  if (posix_memalign(&ptr, vsearch_memalignment, size) != 0)
-    {
-      ptr = nullptr;
-    }
+  if (posix_memalign(&ptr, vsearch_memalignment, size) != 0) {
+    ptr = nullptr;
+  }
 #endif
-  if (ptr == nullptr)
-    {
-      fatal("Unable to allocate enough memory.");
-    }
+  if (ptr == nullptr) {
+    fatal("Unable to allocate enough memory.");
+  }
   return ptr;
 }
 
-
-auto xrealloc(void * ptr, std::size_t size) -> void *
-{
+auto xrealloc(void *ptr, std::size_t size) -> void * {
   static constexpr auto minimal_allocation = std::size_t{1};
   size = std::max(size, minimal_allocation);
 #ifdef _WIN32
-  void * new_ptr = _aligned_realloc(ptr, size, vsearch_memalignment);
+  void *new_ptr = _aligned_realloc(ptr, size, vsearch_memalignment);
 #else
-  void * new_ptr = realloc(ptr, size);
+  void *new_ptr = realloc(ptr, size);
 #endif
-  if (new_ptr == nullptr)
-    {
-      fatal("Unable to reallocate enough memory.");
-    }
+  if (new_ptr == nullptr) {
+    fatal("Unable to reallocate enough memory.");
+  }
   return new_ptr;
 }
 
-
-auto xfree(void * ptr) -> void
-{
-  if (ptr != nullptr)
-    {
+auto xfree(void *ptr) -> void {
+  if (ptr != nullptr) {
 #ifdef _WIN32
-      _aligned_free(ptr);
+    _aligned_free(ptr);
 #else
-      free(ptr);
+    free(ptr);
 #endif
-    }
-  else
-    {
-      fatal("Trying to free a null pointer");
-    }
+  } else {
+    fatal("Trying to free a null pointer");
+  }
 }
 
-
-auto xfstat(int file_descriptor, xstat_t * buf) -> int
-{
+auto xfstat(int file_descriptor, xstat_t *buf) -> int {
 #ifdef _WIN32
   return _fstat64(file_descriptor, buf);
 #else
-  return fstat(file_descriptor, buf);  // return zero if success
+  return fstat(file_descriptor, buf); // return zero if success
 #endif
 }
 
-
-auto xstat(const char * path, xstat_t * buf) -> int
-{
+auto xstat(const char *path, xstat_t *buf) -> int {
 #ifdef _WIN32
   return _stat64(path, buf);
 #else
@@ -291,20 +255,17 @@ auto xstat(const char * path, xstat_t * buf) -> int
 #endif
 }
 
-
-auto xlseek(int file_descriptor, uint64_t offset, int whence) -> uint64_t
-{
+auto xlseek(int file_descriptor, uint64_t offset, int whence) -> uint64_t {
 #ifdef _WIN32
   return _lseeki64(file_descriptor, offset, whence);
 #else
-  return lseek(file_descriptor, offset, whence);  // libC or linuxism: replace with std::fseek()?
+  return lseek(file_descriptor, offset,
+               whence); // libC or linuxism: replace with std::fseek()?
 #endif
 }
 
-
 // refactoring: only used in fastx.cc
-auto xftello(std::FILE * stream) -> uint64_t
-{
+auto xftello(std::FILE *stream) -> uint64_t {
 #ifdef _WIN32
   return _ftelli64(stream);
 #else
@@ -312,10 +273,8 @@ auto xftello(std::FILE * stream) -> uint64_t
 #endif
 }
 
-
 // refactoring: only used in udb.cc
-auto xopen_read(const char * path) -> int
-{
+auto xopen_read(const char *path) -> int {
 #ifdef _WIN32
   return _open(path, _O_RDONLY | _O_BINARY);
 #else
@@ -323,30 +282,22 @@ auto xopen_read(const char * path) -> int
 #endif
 }
 
-
 // refactoring: only used in udb.cc
-auto xopen_write(const char * path) -> int
-{
+auto xopen_write(const char *path) -> int {
 #ifdef _WIN32
-  return _open(path,
-               _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
+  return _open(path, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
                _S_IREAD | _S_IWRITE);
 #else
-  return open(path,
-              O_WRONLY | O_CREAT | O_TRUNC,
-              S_IRUSR | S_IWUSR);
+  return open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 #endif
 }
 
-
 #ifdef _WIN32
-auto arch_dlsym(HMODULE handle, const char * symbol) -> void_func_ptr
-{
+auto arch_dlsym(HMODULE handle, const char *symbol) -> void_func_ptr {
   return reinterpret_cast<void_func_ptr>(GetProcAddress(handle, symbol));
 }
 #else
-auto arch_dlsym(void * handle, const char * symbol) -> void_func_ptr
-{
+auto arch_dlsym(void *handle, const char *symbol) -> void_func_ptr {
   return reinterpret_cast<void_func_ptr>(dlsym(handle, symbol));
 }
 #endif

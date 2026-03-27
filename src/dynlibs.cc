@@ -58,73 +58,66 @@
 
 */
 
-#include "vsearch.h"
 #include "dynlibs.h"
 #include "utils/fatal.hpp"
-#include <cstdio>  // std::FILE
+#include "vsearch.h"
+#include <cstdio> // std::FILE
 #include <string>
 
-
 #ifdef HAVE_ZLIB_H
-# ifdef _WIN32
+#ifdef _WIN32
 const std::string gz_libname = "zlib1.dll";
 HMODULE gz_lib;
-# else
-#  ifdef __APPLE__
+#else
+#ifdef __APPLE__
 const std::string gz_libname = "libz.dylib";
-#  else
+#else
 const std::string gz_libname = "libz.so.1";
-#  endif
-void * gz_lib;
-# endif
+#endif
+void *gz_lib;
+#endif
 
-gzFile ZEXPORT (*gzdopen_p) OF((int, const char *));
-int ZEXPORT (*gzclose_p) OF((gzFile));
-int ZEXPORT (*gzread_p) OF((gzFile, void *, unsigned));
+gzFile ZEXPORT(*gzdopen_p) OF((int, const char *));
+int ZEXPORT(*gzclose_p) OF((gzFile));
+int ZEXPORT(*gzread_p) OF((gzFile, void *, unsigned));
 
 #endif
 
 #ifdef HAVE_BZLIB_H
-# ifdef _WIN32
+#ifdef _WIN32
 const std::string bz2_libname = "libbz2.dll";
 HMODULE bz2_lib;
-# else
-#  ifdef __APPLE__
+#else
+#ifdef __APPLE__
 const std::string bz2_libname = "libbz2.dylib";
-#  else
+#else
 const std::string bz2_libname = "libbz2.so.1";
-#  endif
-void * bz2_lib;
-# endif
+#endif
+void *bz2_lib;
+#endif
 
-BZFILE* (*BZ2_bzReadOpen_p)(int*, FILE*, int, int, void*, int);
-void (*BZ2_bzReadClose_p)(int*, BZFILE*);
-int (*BZ2_bzRead_p)(int*, BZFILE*, void*, int);
+BZFILE *(*BZ2_bzReadOpen_p)(int *, FILE *, int, int, void *, int);
+void (*BZ2_bzReadClose_p)(int *, BZFILE *);
+int (*BZ2_bzRead_p)(int *, BZFILE *, void *, int);
 
 #endif
 
-
-auto dynlibs_open() -> void
-{
+auto dynlibs_open() -> void {
 #ifdef HAVE_ZLIB_H
 #ifdef _WIN32
   gz_lib = LoadLibraryA(gz_libname.data());
 #else
   gz_lib = dlopen(gz_libname.data(), RTLD_LAZY);
 #endif
-  if (gz_lib != nullptr)
-    {
-      gzdopen_p = (gzFile (*)(int, const char*))
-        arch_dlsym(gz_lib, "gzdopen");
-      gzclose_p = (int (*)(gzFile))
-        arch_dlsym(gz_lib, "gzclose");
-      gzread_p = (int (*)(gzFile, void*, unsigned))
-        arch_dlsym(gz_lib, "gzread");
-      if (not ((gzdopen_p != nullptr) && (gzclose_p != nullptr) && (gzread_p != nullptr)))
-        {
-          fatal("Invalid compression library (zlib)");
-        }
+  if (gz_lib != nullptr) {
+    gzdopen_p = (gzFile(*)(int, const char *))arch_dlsym(gz_lib, "gzdopen");
+    gzclose_p = (int (*)(gzFile))arch_dlsym(gz_lib, "gzclose");
+    gzread_p = (int (*)(gzFile, void *, unsigned))arch_dlsym(gz_lib, "gzread");
+    if (not((gzdopen_p != nullptr) && (gzclose_p != nullptr) &&
+            (gzread_p != nullptr))) {
+      fatal("Invalid compression library (zlib)");
     }
+  }
 #endif
 
 #ifdef HAVE_BZLIB_H
@@ -133,46 +126,41 @@ auto dynlibs_open() -> void
 #else
   bz2_lib = dlopen(bz2_libname.data(), RTLD_LAZY);
 #endif
-  if (bz2_lib != nullptr)
-    {
-      BZ2_bzReadOpen_p = (BZFILE* (*)(int*, FILE*, int, int, void*, int))
+  if (bz2_lib != nullptr) {
+    BZ2_bzReadOpen_p = (BZFILE * (*)(int *, FILE *, int, int, void *, int))
         arch_dlsym(bz2_lib, "BZ2_bzReadOpen");
-      BZ2_bzReadClose_p = (void (*)(int*, BZFILE*))
-        arch_dlsym(bz2_lib, "BZ2_bzReadClose");
-      BZ2_bzRead_p = (int (*)(int*, BZFILE*, void*, int))
-        arch_dlsym(bz2_lib, "BZ2_bzRead");
-      if (not ((BZ2_bzReadOpen_p != nullptr) && (BZ2_bzReadClose_p != nullptr) && (BZ2_bzRead_p != nullptr)))
-        {
-          fatal("Invalid compression library (bz2)");
-        }
+    BZ2_bzReadClose_p =
+        (void (*)(int *, BZFILE *))arch_dlsym(bz2_lib, "BZ2_bzReadClose");
+    BZ2_bzRead_p = (int (*)(int *, BZFILE *, void *, int))arch_dlsym(
+        bz2_lib, "BZ2_bzRead");
+    if (not((BZ2_bzReadOpen_p != nullptr) && (BZ2_bzReadClose_p != nullptr) &&
+            (BZ2_bzRead_p != nullptr))) {
+      fatal("Invalid compression library (bz2)");
     }
+  }
 #endif
 }
 
-
-auto dynlibs_close() -> void
-{
+auto dynlibs_close() -> void {
 #ifdef HAVE_ZLIB_H
-  if (gz_lib != nullptr)
-    {
+  if (gz_lib != nullptr) {
 #ifdef _WIN32
-      FreeLibrary(gz_lib);
+    FreeLibrary(gz_lib);
 #else
-      dlclose(gz_lib);
+    dlclose(gz_lib);
 #endif
-    }
+  }
   gz_lib = nullptr;
 #endif
 
 #ifdef HAVE_BZLIB_H
-  if (bz2_lib != nullptr)
-    {
+  if (bz2_lib != nullptr) {
 #ifdef _WIN32
-      FreeLibrary(bz2_lib);
+    FreeLibrary(bz2_lib);
 #else
-      dlclose(bz2_lib);
+    dlclose(bz2_lib);
 #endif
-    }
+  }
   bz2_lib = nullptr;
 #endif
 }

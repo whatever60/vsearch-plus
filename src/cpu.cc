@@ -59,96 +59,88 @@
 */
 
 #include "vsearch.h"
-#include <cstdint>  // int32_t
-#include <cstring>  // std::memcpy
-
+#include <cstdint> // int32_t
+#include <cstring> // std::memcpy
 
 /* This file contains code dependent on special cpu features. */
 /* The file may be compiled several times with different cpu options. */
 
 #ifdef __aarch64__
 
-void increment_counters_from_bitmap(count_t * counters,
-                                    unsigned char * bitmap,
-                                    unsigned int totalbits)
-{
-  const uint8x16_t c1 =
-    { 0x01, 0x01, 0x02, 0x02, 0x04, 0x04, 0x08, 0x08,
-      0x10, 0x10, 0x20, 0x20, 0x40, 0x40, 0x80, 0x80 };
+void increment_counters_from_bitmap(count_t *counters, unsigned char *bitmap,
+                                    unsigned int totalbits) {
+  const uint8x16_t c1 = {0x01, 0x01, 0x02, 0x02, 0x04, 0x04, 0x08, 0x08,
+                         0x10, 0x10, 0x20, 0x20, 0x40, 0x40, 0x80, 0x80};
 
-  unsigned short * p = (unsigned short *) (bitmap);
-  int16x8_t * q = (int16x8_t *) (counters);
+  unsigned short *p = (unsigned short *)(bitmap);
+  int16x8_t *q = (int16x8_t *)(counters);
   const auto r = (totalbits + 15) / 16;
 
-  for (auto j = 0U; j < r; j++)
-    {
-      // load and duplicate short
-      uint16x8_t r0 = vdupq_n_u16(*p);
-      ++p;
+  for (auto j = 0U; j < r; j++) {
+    // load and duplicate short
+    uint16x8_t r0 = vdupq_n_u16(*p);
+    ++p;
 
-      // cast to bytes
-      uint8x16_t r1 = vreinterpretq_u8_u16(r0);
+    // cast to bytes
+    uint8x16_t r1 = vreinterpretq_u8_u16(r0);
 
-      // bit test with mask giving 0x00 or 0xff
-      uint8x16_t r2 = vtstq_u8(r1, c1);
+    // bit test with mask giving 0x00 or 0xff
+    uint8x16_t r2 = vtstq_u8(r1, c1);
 
-      // transpose to duplicate even bytes
-      uint8x16_t r3 = vtrn1q_u8(r2, r2);
+    // transpose to duplicate even bytes
+    uint8x16_t r3 = vtrn1q_u8(r2, r2);
 
-      // transpose to duplicate odd bytes
-      uint8x16_t r4 = vtrn2q_u8(r2, r2);
+    // transpose to duplicate odd bytes
+    uint8x16_t r4 = vtrn2q_u8(r2, r2);
 
-      // cast to signed 0x0000 or 0xffff
-      int16x8_t r5 = vreinterpretq_s16_u8(r3);
+    // cast to signed 0x0000 or 0xffff
+    int16x8_t r5 = vreinterpretq_s16_u8(r3);
 
-      // cast to signed 0x0000 or 0xffff
-      int16x8_t r6 = vreinterpretq_s16_u8(r4);
+    // cast to signed 0x0000 or 0xffff
+    int16x8_t r6 = vreinterpretq_s16_u8(r4);
 
-      // subtract signed 0 or -1 (i.e add 0 or 1) with saturation to counter
-      *q = vqsubq_s16(*q, r5);
-      ++q;
+    // subtract signed 0 or -1 (i.e add 0 or 1) with saturation to counter
+    *q = vqsubq_s16(*q, r5);
+    ++q;
 
-      // subtract signed 0 or 1 (i.e. add 0 or 1) with saturation to counter
-      *q = vqsubq_s16(*q, r6);
-      ++q;
-    }
+    // subtract signed 0 or 1 (i.e. add 0 or 1) with saturation to counter
+    *q = vqsubq_s16(*q, r6);
+    ++q;
+  }
 }
 
 #elif defined __PPC__
 
-void increment_counters_from_bitmap(count_t * counters,
-                                    unsigned char * bitmap,
-                                    unsigned int totalbits)
-{
-  const __vector unsigned char c1 =
-    { 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
-  const __vector unsigned char c2 =
-    { 0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f,
-      0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f };
-  const __vector unsigned char c3 =
-    { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+void increment_counters_from_bitmap(count_t *counters, unsigned char *bitmap,
+                                    unsigned int totalbits) {
+  const __vector unsigned char c1 = {1, 1, 1, 1, 1, 1, 1, 1,
+                                     0, 0, 0, 0, 0, 0, 0, 0};
+  const __vector unsigned char c2 = {0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf,
+                                     0xbf, 0x7f, 0xfe, 0xfd, 0xfb, 0xf7,
+                                     0xef, 0xdf, 0xbf, 0x7f};
+  const __vector unsigned char c3 = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                     0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                     0xff, 0xff, 0xff, 0xff};
 
-  unsigned short * p = (unsigned short *) (bitmap);
-  __vector signed short * q = (__vector signed short *) (counters);
+  unsigned short *p = (unsigned short *)(bitmap);
+  __vector signed short *q = (__vector signed short *)(counters);
   const auto r = (totalbits + 15) / 16;
 
-  for (auto j = 0U; j < r; j++)
-    {
-      __vector unsigned char r0;
+  for (auto j = 0U; j < r; j++) {
+    __vector unsigned char r0;
 
-      std::memcpy(&r0, p, 2);
-      ++p;
-      __vector unsigned char r1 = vec_perm(r0, r0, c1);
-      __vector unsigned char r2 = vec_or(r1, c2);
-      __vector __bool char r3 = vec_cmpeq(r2, c3);
-      __vector signed short r4 = (__vector signed short) vec_unpackl(r3);
-      __vector signed short r5 = (__vector signed short) vec_unpackh(r3);
-      *q = vec_subs(*q, r4);
-      ++q;
-      *q = vec_subs(*q, r5);
-      ++q;
-    }
+    std::memcpy(&r0, p, 2);
+    ++p;
+    __vector unsigned char r1 = vec_perm(r0, r0, c1);
+    __vector unsigned char r2 = vec_or(r1, c2);
+    __vector __bool char r3 = vec_cmpeq(r2, c3);
+    __vector signed short r4 = (__vector signed short)vec_unpackl(r3);
+    __vector signed short r5 = (__vector signed short)vec_unpackh(r3);
+    *q = vec_subs(*q, r4);
+    ++q;
+    *q = vec_subs(*q, r5);
+    ++q;
+  }
 }
 
 #elif __x86_64__ || defined(SIMDE_VERSION)
@@ -161,16 +153,15 @@ void increment_counters_from_bitmap(count_t * counters,
 #endif
 
 #ifdef SIMDE_VERSION
-void increment_counters_from_bitmap(count_t * counters,
-                                    unsigned char * bitmap,
+void increment_counters_from_bitmap(count_t *counters, unsigned char *bitmap,
                                     unsigned int totalbits)
 #elif defined(SSSE3)
-void increment_counters_from_bitmap_ssse3(count_t * counters,
-                                          unsigned char * bitmap,
+void increment_counters_from_bitmap_ssse3(count_t *counters,
+                                          unsigned char *bitmap,
                                           unsigned int totalbits)
 #else
-void increment_counters_from_bitmap_sse2(count_t * counters,
-                                         unsigned char * bitmap,
+void increment_counters_from_bitmap_sse2(count_t *counters,
+                                         unsigned char *bitmap,
                                          unsigned int totalbits)
 #endif
 {
@@ -205,29 +196,28 @@ void increment_counters_from_bitmap_sse2(count_t * counters,
   const auto c2 = _mm_set_epi32(mask1, mask2, mask1, mask2);
   const auto c3 = _mm_set_epi32(all_ones, all_ones, all_ones, all_ones);
 
-  auto * p = (unsigned short *) bitmap;
-  auto * q = (__m128i *) counters;
+  auto *p = (unsigned short *)bitmap;
+  auto *q = (__m128i *)counters;
   const auto r = (totalbits + 15) / 16;
 
-  for (auto j = 0U; j < r; j++)
-    {
-      const auto xmm0 = _mm_loadu_si128((__m128i *) p++);
+  for (auto j = 0U; j < r; j++) {
+    const auto xmm0 = _mm_loadu_si128((__m128i *)p++);
 #if defined(SSSE3) || defined(SIMDE_VERSION)
-      const auto xmm1 = _mm_shuffle_epi8(xmm0, c1);
+    const auto xmm1 = _mm_shuffle_epi8(xmm0, c1);
 #else
-      const auto xmm6 = _mm_unpacklo_epi8(xmm0, xmm0);
-      const auto xmm7 = _mm_unpacklo_epi16(xmm6, xmm6);
-      const auto xmm1 = _mm_unpacklo_epi32(xmm7, xmm7);
+    const auto xmm6 = _mm_unpacklo_epi8(xmm0, xmm0);
+    const auto xmm7 = _mm_unpacklo_epi16(xmm6, xmm6);
+    const auto xmm1 = _mm_unpacklo_epi32(xmm7, xmm7);
 #endif
-      const auto xmm2 = _mm_or_si128(xmm1, c2);
-      const auto xmm3 = _mm_cmpeq_epi8(xmm2, c3);
-      const auto xmm4 = _mm_unpacklo_epi8(xmm3, xmm3);
-      const auto xmm5 = _mm_unpackhi_epi8(xmm3, xmm3);
-      *q = _mm_subs_epi16(*q, xmm4);
-      ++q;
-      *q = _mm_subs_epi16(*q, xmm5);
-      ++q;
-    }
+    const auto xmm2 = _mm_or_si128(xmm1, c2);
+    const auto xmm3 = _mm_cmpeq_epi8(xmm2, c3);
+    const auto xmm4 = _mm_unpacklo_epi8(xmm3, xmm3);
+    const auto xmm5 = _mm_unpackhi_epi8(xmm3, xmm3);
+    *q = _mm_subs_epi16(*q, xmm4);
+    ++q;
+    *q = _mm_subs_epi16(*q, xmm5);
+    ++q;
+  }
 }
 
 #else

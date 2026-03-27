@@ -63,28 +63,26 @@
 #include <cstdint>
 #include <vector>
 
-
 struct uhandle_s;
 
 /* the number of alignments that can be delayed */
 constexpr auto MAXDELAYED = 8U;
 
 /* Default minimum number of word matches for word lengths 3-15 */
-constexpr std::array<int, 16> minwordmatches_defaults =
-  {{ -1, -1, -1, 18, 17, 16, 15, 14, 12, 11, 10,  9,  8,  7,  5,  3 }};
+constexpr std::array<int, 16> minwordmatches_defaults = {
+    {-1, -1, -1, 18, 17, 16, 15, 14, 12, 11, 10, 9, 8, 7, 5, 3}};
 
-struct hit
-{
+struct hit {
   int target;
   int strand;
 
   /* candidate info */
-  unsigned int count;     /* number of unique kmers shared with query */
+  unsigned int count; /* number of unique kmers shared with query */
 
-  bool accepted;          /* is it accepted? */
-  bool rejected;          /* is it rejected? */
-  bool aligned;           /* has this hit been aligned */
-  bool weak;              /* weak hits are aligned with id > weak_id */
+  bool accepted; /* is it accepted? */
+  bool rejected; /* is it rejected? */
+  bool aligned;  /* has this hit been aligned */
+  bool weak;     /* weak hits are aligned with id > weak_id */
 
   /* info about global alignment, including terminal gaps */
 
@@ -94,7 +92,7 @@ struct hit
   int nwindels;          /* indels in global alignment */
   int nwalignmentlength; /* length of global alignment */
   double nwid;           /* percent identity of global alignment */
-  char * nwalignment;    /* alignment string (cigar) of global alignment */
+  char *nwalignment;     /* alignment string (cigar) of global alignment */
   int matches;
   int mismatches;
 
@@ -112,27 +110,25 @@ struct hit
 
   /* more info */
 
-  double id;             /* identity used for ranking */
+  double id; /* identity used for ranking */
   double id0;
   double id1;
   double id2;
   double id3;
   double id4;
 
-  int shortest;          /* length of shortest of query and target */
-  int longest;           /* length of longest of query and target */
+  int shortest; /* length of shortest of query and target */
+  int longest;  /* length of longest of query and target */
 };
 
-struct search_unaligned_numeric_filters_s
-{
+struct search_unaligned_numeric_filters_s {
   int64_t qsize = 0;
   int64_t tsize = 0;
   double qlen = 0.0;
   double tlen = 0.0;
 };
 
-struct search_aligned_filter_input_s
-{
+struct search_aligned_filter_input_s {
   int mismatches = 0;
   int nwgaps = 0;
   int nwalignmentlength = 0;
@@ -146,8 +142,7 @@ struct search_aligned_filter_input_s
   int trim_right_total = 0;
 };
 
-struct search_aligned_identity_metrics_s
-{
+struct search_aligned_identity_metrics_s {
   int shortest = 0;
   int longest = 0;
   int ungapped_cols = 0;
@@ -163,67 +158,67 @@ struct search_aligned_identity_metrics_s
 /* type of kmer hit counter element remember possibility of overflow */
 using count_t = unsigned short;
 
-struct searchinfo_s
-{
+struct searchinfo_s {
   int query_no = 0;                 /* query number, zero-based */
   int strand = 0;                   /* strand of query being analysed */
   int qsize = 0;                    /* query abundance */
   int query_head_len = 0;           /* query header length */
   int query_head_alloc = 0;         /* bytes allocated for the header */
-  char * query_head = nullptr;            /* query header */
+  char *query_head = nullptr;       /* query header */
   int qseqlen = 0;                  /* query length */
   int seq_alloc = 0;                /* bytes allocated for the query sequence */
-  std::vector<char> qsequence_v;  /* vector of query sequence chars */
-  char * qsequence = nullptr;             /* query sequence */
+  std::vector<char> qsequence_v;    /* vector of query sequence chars */
+  char *qsequence = nullptr;        /* query sequence */
   unsigned int kmersamplecount = 0; /* number of kmer samples from query */
-  unsigned int const * kmersample = nullptr;    /* list of kmers sampled from query */
-  std::vector<count_t> kmers_v; /* vector of kmer counts */
-  count_t * kmers = nullptr;              /* list of kmer counts for each db seq */
+  unsigned int const *kmersample =
+      nullptr;                    /* list of kmers sampled from query */
+  std::vector<count_t> kmers_v;   /* vector of kmer counts */
+  count_t *kmers = nullptr;       /* list of kmer counts for each db seq */
   std::vector<struct hit> hits_v; /* vector of hits */
-  struct hit * hits = nullptr;            /* list of hits */
-  int hit_count = 0;                /* number of hits in the above list */
-  struct uhandle_s * uh = nullptr;        /* unique kmer finder instance */
-  struct s16info_s * s = nullptr;         /* SIMD aligner instance */
-  struct nwinfo_s * nw = nullptr;         /* NW aligner instance */
-  LinearMemoryAligner * lma = nullptr;    /* Linear memory aligner instance pointer */
-  int accepts = 0;                  /* number of accepts */
-  int rejects = 0;                  /* number of rejects */
-  struct minheap_s * m = nullptr;   /* min heap with the top kmer db seqs */
+  struct hit *hits = nullptr;     /* list of hits */
+  int hit_count = 0;              /* number of hits in the above list */
+  struct uhandle_s *uh = nullptr; /* unique kmer finder instance */
+  struct s16info_s *s = nullptr;  /* SIMD aligner instance */
+  struct nwinfo_s *nw = nullptr;  /* NW aligner instance */
+  LinearMemoryAligner *lma =
+      nullptr;                   /* Linear memory aligner instance pointer */
+  int accepts = 0;               /* number of accepts */
+  int rejects = 0;               /* number of rejects */
+  struct minheap_s *m = nullptr; /* min heap with the top kmer db seqs */
   int finalized = 0;
 };
 
-auto search_topscores(struct searchinfo_s * searchinfo) -> void;
+auto search_topscores(struct searchinfo_s *searchinfo) -> void;
 
-auto search_onequery(struct searchinfo_s * searchinfo, int seqmask) -> void;
+auto search_onequery(struct searchinfo_s *searchinfo, int seqmask) -> void;
 
-auto search_findbest2_byid(struct searchinfo_s * si_p,
-                           struct searchinfo_s * si_m) -> struct hit *;
+auto search_findbest2_byid(struct searchinfo_s *si_p, struct searchinfo_s *si_m)
+    -> struct hit *;
 
-auto search_findbest2_bysize(struct searchinfo_s * si_p,
-                             struct searchinfo_s * si_m) -> struct hit *;
+auto search_findbest2_bysize(struct searchinfo_s *si_p,
+                             struct searchinfo_s *si_m) -> struct hit *;
 
-auto search_acceptable_unaligned(struct searchinfo_s const & searchinfo,
+auto search_acceptable_unaligned(struct searchinfo_s const &searchinfo,
                                  int target) -> bool;
 
-auto search_acceptable_aligned(struct searchinfo_s const & searchinfo,
-                               struct hit * hit) -> bool;
+auto search_acceptable_aligned(struct searchinfo_s const &searchinfo,
+                               struct hit *hit) -> bool;
 
 auto search_unaligned_numeric_filters_pass(
-    struct search_unaligned_numeric_filters_s const & filters) -> bool;
+    struct search_unaligned_numeric_filters_s const &filters) -> bool;
 
 auto search_aligned_compute_identity_metrics(
-    struct search_aligned_filter_input_s const & filter_input)
+    struct search_aligned_filter_input_s const &filter_input)
     -> struct search_aligned_identity_metrics_s;
 
 auto search_aligned_threshold_filters_pass(
-    struct search_aligned_filter_input_s const & filter_input,
-    struct search_aligned_identity_metrics_s const & metrics) -> bool;
+    struct search_aligned_filter_input_s const &filter_input,
+    struct search_aligned_identity_metrics_s const &metrics) -> bool;
 
-auto align_trim(struct hit * hit) -> void;
+auto align_trim(struct hit *hit) -> void;
 
-auto search_joinhits(struct searchinfo_s * si_p,
-                     struct searchinfo_s * si_m,
-                     std::vector<struct hit> & hits) -> void;
+auto search_joinhits(struct searchinfo_s *si_p, struct searchinfo_s *si_m,
+                     std::vector<struct hit> &hits) -> void;
 
-auto search_enough_kmers(struct searchinfo_s const & searchinfo,
+auto search_enough_kmers(struct searchinfo_s const &searchinfo,
                          unsigned int count) -> bool;

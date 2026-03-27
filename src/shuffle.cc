@@ -58,74 +58,68 @@
 
 */
 
-#include "vsearch.h"
 #include "utils/check_output_filehandle.hpp"
 #include "utils/fatal.hpp"
 #include "utils/open_file.hpp"
-#include <algorithm>  // std::min, std::shuffle
-#include <cstdio>  // std::FILE, std::size_t
-#include <numeric>  // std::iota
+#include "vsearch.h"
+#include <algorithm> // std::min, std::shuffle
+#include <cstdio>    // std::FILE, std::size_t
+#include <numeric>   // std::iota
 #include <random>
 #include <vector>
-
 
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {
 
-  auto create_deck() -> std::vector<int> {
-    auto const dbsequencecount = db_getsequencecount();
-    std::vector<int> deck(dbsequencecount);
-    std::iota(deck.begin(), deck.end(), 0);
-    return deck;
+auto create_deck() -> std::vector<int> {
+  auto const dbsequencecount = db_getsequencecount();
+  std::vector<int> deck(dbsequencecount);
+  std::iota(deck.begin(), deck.end(), 0);
+  return deck;
+}
+
+auto generate_seed(long int const user_seed) -> unsigned int {
+  if (user_seed != 0) {
+    return static_cast<unsigned int>(user_seed);
   }
+  std::random_device number_generator;
+  return number_generator();
+}
 
+auto shuffle_deck(std::vector<int> &deck, long int const user_seed) -> void {
+  static constexpr auto one_hundred_percent = 100ULL;
+  progress_init("Shuffling", one_hundred_percent);
+  auto const seed = generate_seed(user_seed);
+  std::mt19937_64 uniform_generator(seed);
+  std::shuffle(deck.begin(), deck.end(), uniform_generator);
+  progress_done();
+}
 
-  auto generate_seed(long int const user_seed) -> unsigned int {
-    if (user_seed != 0) {
-      return static_cast<unsigned int>(user_seed);
-    }
-    std::random_device number_generator;
-    return number_generator();
+// refactoring: turn into template, remove conditional
+auto truncate_deck(std::vector<int> &deck, long int const n_first_sequences)
+    -> void {
+  // auto const new_size = std::min(deck.size(), n_first_sequences)
+  // deck.resize(new_size);
+  if (deck.size() > static_cast<unsigned long>(n_first_sequences)) {
+    deck.resize(n_first_sequences);
   }
+}
 
-
-  auto shuffle_deck(std::vector<int> & deck, long int const user_seed) -> void {
-    static constexpr auto one_hundred_percent = 100ULL;
-    progress_init("Shuffling", one_hundred_percent);
-    auto const seed = generate_seed(user_seed);
-    std::mt19937_64 uniform_generator(seed);
-    std::shuffle(deck.begin(), deck.end(), uniform_generator);
-    progress_done();
+auto output_shuffled_fasta(std::vector<int> const &deck, std::FILE *output_file)
+    -> void {
+  progress_init("Writing output", deck.size());
+  auto counter = std::size_t{0};
+  for (auto const sequence_id : deck) {
+    fasta_print_db_relabel(output_file, sequence_id, counter + 1);
+    progress_update(counter);
+    ++counter;
   }
+  progress_done();
+}
 
+} // end of anonymous namespace
 
-  // refactoring: turn into template, remove conditional
-  auto truncate_deck(std::vector<int> & deck,
-                     long int const n_first_sequences) -> void {
-    // auto const new_size = std::min(deck.size(), n_first_sequences)
-    // deck.resize(new_size);
-    if (deck.size() > static_cast<unsigned long>(n_first_sequences)) {
-      deck.resize(n_first_sequences);
-    }
-  }
-
-
-  auto output_shuffled_fasta(std::vector<int> const & deck,
-                             std::FILE * output_file) -> void {
-    progress_init("Writing output", deck.size());
-    auto counter = std::size_t{0};
-    for (auto const sequence_id: deck) {
-      fasta_print_db_relabel(output_file, sequence_id, counter + 1);
-      progress_update(counter);
-      ++counter;
-    }
-    progress_done();
-  }
-
-}  // end of anonymous namespace
-
-
-auto shuffle(struct Parameters const & parameters) -> void {
+auto shuffle(struct Parameters const &parameters) -> void {
   auto const output_handle = open_output_file(parameters.opt_output);
   check_mandatory_output_handle(parameters.opt_output, (not output_handle));
   db_read(parameters.opt_shuffle, 0);

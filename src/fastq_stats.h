@@ -58,4 +58,4 @@
 
 */
 
-auto fastq_stats(struct Parameters const & parameters) -> void;
+auto fastq_stats(struct Parameters const &parameters) -> void;

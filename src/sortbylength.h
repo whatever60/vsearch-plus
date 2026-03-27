@@ -58,4 +58,4 @@
 
 */
 
-auto sortbylength(struct Parameters const & parameters) -> void;
+auto sortbylength(struct Parameters const &parameters) -> void;

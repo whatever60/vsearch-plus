@@ -58,16 +58,14 @@
 
 */
 
+#include <cstdint> // uint64_t
 #include <cstdio>  // std::FILE
-#include <cstdint>  // uint64_t
-
 
 auto fastq_open_rest(fastx_handle input_handle) -> void;
-auto fastq_open(const char * filename) -> fastx_handle;
+auto fastq_open(const char *filename) -> fastx_handle;
 auto fastq_close(fastx_handle input_handle) -> void;
-auto fastq_next(fastx_handle input_handle,
-                bool truncateatspace,
-                const unsigned char * char_mapping) -> bool;
+auto fastq_next(fastx_handle input_handle, bool truncateatspace,
+                const unsigned char *char_mapping) -> bool;
 auto fastq_get_position(fastx_handle input_handle) -> uint64_t;
 auto fastq_get_size(fastx_handle input_handle) -> uint64_t;
 auto fastq_get_lineno(fastx_handle input_handle) -> uint64_t;
@@ -81,14 +79,10 @@ auto fastq_get_header_length(fastx_handle input_handle) -> uint64_t;
 auto fastq_get_sequence_length(fastx_handle input_handle) -> uint64_t;
 auto fastq_get_quality_length(fastx_handle input_handle) -> uint64_t;
 
-auto fastq_print(std::FILE * output_handle, char const * header, char const * sequence, char const * quality) -> void;
+auto fastq_print(std::FILE *output_handle, char const *header,
+                 char const *sequence, char const *quality) -> void;
 
-auto fastq_print_general(std::FILE * output_handle,
-                         char const * seq,
-                         int len,
-                         char const * header,
-                         int header_len,
-                         char const * quality,
-                         int abundance,
-                         int ordinal,
+auto fastq_print_general(std::FILE *output_handle, char const *seq, int len,
+                         char const *header, int header_len,
+                         char const *quality, int abundance, int ordinal,
                          double expected_error) -> void;

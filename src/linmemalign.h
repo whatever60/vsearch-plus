@@ -61,10 +61,9 @@
 #ifndef LINMEMALIGN_HPP
 #define LINMEMALIGN_HPP
 
+#include <cstdint> // int64_t
 #include <cstdio>  // std::FILE, std::size_t
-#include <cstdint>  // int64_t
 #include <vector>
-
 
 struct Scoring {
   // aligned nucleotides
@@ -72,27 +71,25 @@ struct Scoring {
   int64_t mismatch = 0;
 
   // general gap penalties
-  int64_t gap_open_query_interior = 0;  // q
+  int64_t gap_open_query_interior = 0;      // q
   int64_t gap_extension_query_interior = 0; // r
 
   // specific gap penalties
-  int64_t gap_open_query_left = 0;           // go_q_l
-  int64_t gap_open_target_left = 0;          // go_t_l
+  int64_t gap_open_query_left = 0;  // go_q_l
+  int64_t gap_open_target_left = 0; // go_t_l
   //      gap_open_query_interior            // go_q_i
-  int64_t gap_open_target_interior = 0;      // go_t_i
-  int64_t gap_open_query_right = 0;          // go_q_r
-  int64_t gap_open_target_right = 0;         // go_t_r
-  int64_t gap_extension_query_left = 0;      // ge_q_l
-  int64_t gap_extension_target_left = 0;     // ge_t_l
+  int64_t gap_open_target_interior = 0;  // go_t_i
+  int64_t gap_open_query_right = 0;      // go_q_r
+  int64_t gap_open_target_right = 0;     // go_t_r
+  int64_t gap_extension_query_left = 0;  // ge_q_l
+  int64_t gap_extension_target_left = 0; // ge_t_l
   //      gap_extension_query_interior       // ge_q_i
   int64_t gap_extension_target_interior = 0; // ge_t_i
   int64_t gap_extension_query_right = 0;     // ge_q_r
   int64_t gap_extension_target_right = 0;    // ge_t_r
 };
 
-
-class LinearMemoryAligner
-{
+class LinearMemoryAligner {
 private:
   static constexpr auto matrix_size = 16U;
   char op = '\0';
@@ -101,11 +98,13 @@ private:
   int64_t cigar_length = 0;
   std::vector<char> cigar_string;
 
-  char * a_seq = nullptr;
-  char * b_seq = nullptr;
+  char *a_seq = nullptr;
+  char *b_seq = nullptr;
 
   // initialize a 16x16 matrix
-  std::vector<std::vector<int64_t>> scorematrix = std::vector<std::vector<int64_t>>(matrix_size, std::vector<int64_t>(matrix_size));
+  std::vector<std::vector<int64_t>> scorematrix =
+      std::vector<std::vector<int64_t>>(matrix_size,
+                                        std::vector<int64_t>(matrix_size));
 
   /* gap penalties for open/extension query/target left/interior/right */
   int64_t go_q_l = 0;
@@ -129,7 +128,7 @@ private:
   std::vector<int64_t> YY;
 
   // initializers
-  auto scorematrix_fill(struct Scoring const & scoring) -> void;
+  auto scorematrix_fill(struct Scoring const &scoring) -> void;
 
   auto cigar_reset() -> void;
 
@@ -139,37 +138,25 @@ private:
 
   auto subst_score(char lhs, char rhs) -> int64_t;
 
-  auto diff(int64_t a_start,
-            int64_t b_start,
-            int64_t a_len,
-            int64_t b_len,
-            bool gap_b_left,  /* gap open left of b      */
-            bool gap_b_right, /* gap open right of b     */
-            bool a_left,      /* includes left end of a  */
-            bool a_right,     /* includes right end of a */
-            bool b_left,      /* includes left end of b  */
-            bool b_right) -> void;    /* includes right end of b */
+  auto diff(int64_t a_start, int64_t b_start, int64_t a_len, int64_t b_len,
+            bool gap_b_left,       /* gap open left of b      */
+            bool gap_b_right,      /* gap open right of b     */
+            bool a_left,           /* includes left end of a  */
+            bool a_right,          /* includes right end of a */
+            bool b_left,           /* includes left end of b  */
+            bool b_right) -> void; /* includes right end of b */
 
   auto alloc_vectors(std::size_t size) -> void;
 
-
 public:
+  explicit LinearMemoryAligner(struct Scoring const &scoring);
 
-  explicit LinearMemoryAligner(struct Scoring const & scoring);
+  auto align(char *_a_seq, char *_b_seq, int64_t a_len, int64_t b_len)
+      -> char *;
 
-  auto align(char * _a_seq,
-             char * _b_seq,
-             int64_t a_len,
-             int64_t b_len) -> char *;
-
-  auto alignstats(char * cigar,
-                  char * a_seq,
-                  char * b_seq,
-                  int64_t * nwscore,
-                  int64_t * nwalignmentlength,
-                  int64_t * nwmatches,
-                  int64_t * nwmismatches,
-                  int64_t * nwgaps) -> void;
+  auto alignstats(char *cigar, char *a_seq, char *b_seq, int64_t *nwscore,
+                  int64_t *nwalignmentlength, int64_t *nwmatches,
+                  int64_t *nwmismatches, int64_t *nwgaps) -> void;
 };
 
 #endif // LINMEMALIGN_HPP

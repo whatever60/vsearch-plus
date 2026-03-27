@@ -61,11 +61,11 @@
 #include "span.hpp"
 #include <vector>
 
-
 auto contains_substring(Span<char> haystack, Span<char> needle) -> bool;
 
-auto are_same_string(Span<char> haystack, std::vector<char> const & needle) -> bool;
+auto are_same_string(Span<char> haystack, std::vector<char> const &needle)
+    -> bool;
 
 auto are_same_string(Span<char> haystack, Span<char> needle) -> bool;
 
-auto are_same_string(char const * haystack_str, char const * needle_str) -> bool;
+auto are_same_string(char const *haystack_str, char const *needle_str) -> bool;

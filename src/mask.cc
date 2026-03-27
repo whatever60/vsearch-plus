@@ -58,76 +58,67 @@
 
 */
 
-#include "vsearch.h"
 #include "mask.h"
 #include "utils/check_output_filehandle.hpp"
 #include "utils/fatal.hpp"
 #include "utils/maps.hpp"
 #include "utils/open_file.hpp"
 #include "utils/xpthread.hpp"
+#include "vsearch.h"
 #include <array>
 #include <cctype>  // std::toupper, std::isupper
-#include <cstdint>  // int64_t, uint64_t
+#include <cstdint> // int64_t, uint64_t
 #include <cstdio>  // std::FILE
-#include <cstring>  // std::strcpy
+#include <cstring> // std::strcpy
 #include <pthread.h>
 // #include <string>
 #include <vector>
 
-
 constexpr int dust_window = 64;
 
-
-auto wo(int len, const char *s, int *beg, int *end) -> int
-{
+auto wo(int len, const char *s, int *beg, int *end) -> int {
   static constexpr auto dust_word = 3;
-  static constexpr auto word_count = 1U << (2U * dust_word);  // 64
+  static constexpr auto word_count = 1U << (2U * dust_word); // 64
   static constexpr auto bitmask = word_count - 1;
   const auto l1 = len - dust_word + 1 - 5; /* smallest possible region is 8 */
-  if (l1 < 0)
-    {
-      return 0;
-    }
+  if (l1 < 0) {
+    return 0;
+  }
 
   auto bestv = 0;
   auto besti = 0;
   auto bestj = 0;
-  std::array<int, word_count> counts {{}};
-  std::array<int, dust_window> words {{}};
+  std::array<int, word_count> counts{{}};
+  std::array<int, dust_window> words{{}};
   auto word = 0;
 
-  for (auto j = 0; j < len; j++)
-    {
-      word <<= 2U;
-      word |= map_2bit(s[j]);
-      words[j] = word & bitmask;
-    }
+  for (auto j = 0; j < len; j++) {
+    word <<= 2U;
+    word |= map_2bit(s[j]);
+    words[j] = word & bitmask;
+  }
 
-  for (auto i = 0; i < l1; i++)
-    {
-      counts.fill(0);  // reset counts to zero
+  for (auto i = 0; i < l1; i++) {
+    counts.fill(0); // reset counts to zero
 
-      auto sum = 0;
+    auto sum = 0;
 
-      for (auto j = dust_word - 1; j < len - i; j++)
-        {
-          word = words[i + j];
-          const auto c = counts[word];
-          if (c != 0)
-            {
-              sum += c;
-              const auto v = 10 * sum / j;
+    for (auto j = dust_word - 1; j < len - i; j++) {
+      word = words[i + j];
+      const auto c = counts[word];
+      if (c != 0) {
+        sum += c;
+        const auto v = 10 * sum / j;
 
-              if (v > bestv)
-                {
-                  bestv = v;
-                  besti = i;
-                  bestj = j;
-                }
-            }
-          ++counts[word];
+        if (v > bestv) {
+          bestv = v;
+          besti = i;
+          bestj = j;
         }
+      }
+      ++counts[word];
     }
+  }
 
   *beg = besti;
   *end = besti + bestj;
@@ -135,9 +126,7 @@ auto wo(int len, const char *s, int *beg, int *end) -> int
   return bestv;
 }
 
-
-auto dust(char * seq, int len) -> void
-{
+auto dust(char *seq, int len) -> void {
   static constexpr auto dust_level = 20;
   static constexpr auto half_dust_window = dust_window / 2;
   auto a = 0;
@@ -152,80 +141,61 @@ auto dust(char * seq, int len) -> void
   // local_seq2.insert(0, m);
   // local_seq2.insert(len, 1, '\0');
 
-  if (opt_hardmask == 0)
-    {
-      /* convert sequence to upper case unless hardmask in effect */
-      for (auto i = 0; i < len; i++)
-        {
-          seq[i] = toupper(seq[i]);
-        }
-      seq[len] = 0;
+  if (opt_hardmask == 0) {
+    /* convert sequence to upper case unless hardmask in effect */
+    for (auto i = 0; i < len; i++) {
+      seq[i] = toupper(seq[i]);
     }
+    seq[len] = 0;
+  }
 
-  for (auto i = 0; i < len; i += half_dust_window)
-    {
-      const auto l = (len > i + dust_window) ? dust_window : len - i;
-      const auto v = wo(l, &local_seq[i], &a, &b);
+  for (auto i = 0; i < len; i += half_dust_window) {
+    const auto l = (len > i + dust_window) ? dust_window : len - i;
+    const auto v = wo(l, &local_seq[i], &a, &b);
 
-      if (v > dust_level)
-        {
-          if (opt_hardmask != 0)
-            {
-              for (auto j = a + i; j <= b + i; j++)
-                {
-                  seq[j] = 'N';
-                }
-            }
-          else
-            {
-              for (auto j = a + i; j <= b + i; j++)
-                {
-                  seq[j] = local_seq[j] | 32U;  // check_5th_bit (0x20)
-                }
-            }
-
-          if (b < half_dust_window)
-            {
-              i += half_dust_window - b;
-            }
+    if (v > dust_level) {
+      if (opt_hardmask != 0) {
+        for (auto j = a + i; j <= b + i; j++) {
+          seq[j] = 'N';
         }
+      } else {
+        for (auto j = a + i; j <= b + i; j++) {
+          seq[j] = local_seq[j] | 32U; // check_5th_bit (0x20)
+        }
+      }
+
+      if (b < half_dust_window) {
+        i += half_dust_window - b;
+      }
     }
+  }
 }
 
-
-static pthread_t * pthread;
+static pthread_t *pthread;
 static pthread_attr_t attr;
 static pthread_mutex_t mutex;
 static auto nextseq = 0;
 static auto seqcount = 0;
 
-
-auto dust_all_worker(void * vp) -> void *
-{
-  (void) vp; // not used, but required for thread creation
-  while (true)
-    {
-      xpthread_mutex_lock(&mutex);
-      const auto seqno = nextseq;
-      if (seqno < seqcount)
-        {
-          ++nextseq;
-          progress_update(seqno);
-          xpthread_mutex_unlock(&mutex);
-          dust(db_getsequence(seqno), db_getsequencelen(seqno));
-        }
-      else
-        {
-          xpthread_mutex_unlock(&mutex);
-          break;
-        }
+auto dust_all_worker(void *vp) -> void * {
+  (void)vp; // not used, but required for thread creation
+  while (true) {
+    xpthread_mutex_lock(&mutex);
+    const auto seqno = nextseq;
+    if (seqno < seqcount) {
+      ++nextseq;
+      progress_update(seqno);
+      xpthread_mutex_unlock(&mutex);
+      dust(db_getsequence(seqno), db_getsequencelen(seqno));
+    } else {
+      xpthread_mutex_unlock(&mutex);
+      break;
     }
+  }
   return nullptr;
 }
 
-
-auto dust_all() -> void
-{
+auto dust_all() -> void {
   nextseq = 0;
   seqcount = db_getsequencecount();
   progress_init("Masking", seqcount);
@@ -238,16 +208,13 @@ auto dust_all() -> void
   std::vector<pthread_t> pthread_v(opt_threads);
   pthread = pthread_v.data();
 
-  for (auto t = 0; t < opt_threads; t++)
-    {
-      xpthread_create(&pthread_v[t], &attr, dust_all_worker, (void *) (int64_t) t);
-    }
+  for (auto t = 0; t < opt_threads; t++) {
+    xpthread_create(&pthread_v[t], &attr, dust_all_worker, (void *)(int64_t)t);
+  }
 
-  for (auto t = 0; t < opt_threads; t++)
-    {
-      xpthread_join(pthread_v[t], nullptr);
-    }
-
+  for (auto t = 0; t < opt_threads; t++) {
+    xpthread_join(pthread_v[t], nullptr);
+  }
 
   xpthread_attr_destroy(&attr);
 
@@ -256,35 +223,27 @@ auto dust_all() -> void
   progress_done();
 }
 
-
-auto hardmask(char * seq, int len) -> void
-{
+auto hardmask(char *seq, int len) -> void {
   /* convert all lower case letters in seq to N */
   // auto const * const end = std::next(seq, len);
-  // refactoring: std::transform(seq, end, seq, [](unsigned char nuc){ if (std::islower(nuc) != 0) { return hardmask_char; } return nuc;});
+  // refactoring: std::transform(seq, end, seq, [](unsigned char nuc){ if
+  // (std::islower(nuc) != 0) { return hardmask_char; } return nuc;});
   static constexpr auto check_5th_bit = 32U; // 0x20
   static constexpr auto hardmask_char = 'N';
-  for (auto i = 0; i < len; i++)
-    {
-      if ((seq[i] & check_5th_bit) != 0U)
-        {
-          seq[i] = hardmask_char;
-        }
+  for (auto i = 0; i < len; i++) {
+    if ((seq[i] & check_5th_bit) != 0U) {
+      seq[i] = hardmask_char;
     }
+  }
 }
 
-
-auto hardmask_all() -> void
-{
-  for (uint64_t i = 0; i < db_getsequencecount(); i++)
-    {
-      hardmask(db_getsequence(i), db_getsequencelen(i));
-    }
+auto hardmask_all() -> void {
+  for (uint64_t i = 0; i < db_getsequencecount(); i++) {
+    hardmask(db_getsequence(i), db_getsequencelen(i));
+  }
 }
 
-
-auto maskfasta(struct Parameters const & parameters) -> void
-{
+auto maskfasta(struct Parameters const &parameters) -> void {
   auto const output_handle = open_output_file(parameters.opt_output);
   check_mandatory_output_handle(parameters.opt_output, (not output_handle));
 
@@ -293,190 +252,152 @@ auto maskfasta(struct Parameters const & parameters) -> void
 
   seqcount = db_getsequencecount();
 
-  if (parameters.opt_qmask == MASK_DUST)
-    {
-      dust_all();
-    }
-  else if ((parameters.opt_qmask == MASK_SOFT) && parameters.opt_hardmask)
-    {
-      hardmask_all();
-    }
+  if (parameters.opt_qmask == MASK_DUST) {
+    dust_all();
+  } else if ((parameters.opt_qmask == MASK_SOFT) && parameters.opt_hardmask) {
+    hardmask_all();
+  }
   show_rusage();
 
   progress_init("Writing output", seqcount);
-  for (auto i = 0; i < seqcount; i++)
-    {
-      fasta_print_db_relabel(output_handle.get(), i, i + 1);
-      progress_update(i);
-    }
+  for (auto i = 0; i < seqcount; i++) {
+    fasta_print_db_relabel(output_handle.get(), i, i + 1);
+    progress_update(i);
+  }
   progress_done();
   show_rusage();
 
   db_free();
 }
 
+auto fastx_mask(struct Parameters const &parameters) -> void {
+  std::FILE *fp_fastaout = nullptr;
+  std::FILE *fp_fastqout = nullptr;
 
-auto fastx_mask(struct Parameters const & parameters) -> void
-{
-  std::FILE * fp_fastaout = nullptr;
-  std::FILE * fp_fastqout = nullptr;
-
-  if ((parameters.opt_fastaout == nullptr) && (parameters.opt_fastqout == nullptr)) {
+  if ((parameters.opt_fastaout == nullptr) &&
+      (parameters.opt_fastqout == nullptr)) {
     fatal("Specify output files for masking with --fastaout and/or --fastqout");
   }
 
-  if (parameters.opt_fastaout != nullptr)
-    {
-      fp_fastaout = fopen_output(parameters.opt_fastaout);
-      if (fp_fastaout == nullptr)
-        {
-          fatal("Unable to open mask output FASTA file for writing");
-        }
+  if (parameters.opt_fastaout != nullptr) {
+    fp_fastaout = fopen_output(parameters.opt_fastaout);
+    if (fp_fastaout == nullptr) {
+      fatal("Unable to open mask output FASTA file for writing");
     }
+  }
 
-  if (parameters.opt_fastqout != nullptr)
-    {
-      fp_fastqout = fopen_output(parameters.opt_fastqout);
-      if (fp_fastqout == nullptr)
-        {
-          fatal("Unable to open mask output FASTQ file for writing");
-        }
+  if (parameters.opt_fastqout != nullptr) {
+    fp_fastqout = fopen_output(parameters.opt_fastqout);
+    if (fp_fastqout == nullptr) {
+      fatal("Unable to open mask output FASTQ file for writing");
     }
+  }
 
   db_read(parameters.opt_fastx_mask, 0);
   show_rusage();
 
-  if ((fp_fastqout != nullptr) && ! db_is_fastq())
-    {
-      fatal("Cannot write FASTQ output with a FASTA input file, lacking quality scores");
-    }
+  if ((fp_fastqout != nullptr) && !db_is_fastq()) {
+    fatal("Cannot write FASTQ output with a FASTA input file, lacking quality "
+          "scores");
+  }
 
   seqcount = db_getsequencecount();
 
-  if (parameters.opt_qmask == MASK_DUST)
-    {
-      dust_all();
-    }
-  else if ((parameters.opt_qmask == MASK_SOFT) && parameters.opt_hardmask)
-    {
-      hardmask_all();
-    }
+  if (parameters.opt_qmask == MASK_DUST) {
+    dust_all();
+  } else if ((parameters.opt_qmask == MASK_SOFT) && parameters.opt_hardmask) {
+    hardmask_all();
+  }
   show_rusage();
 
   auto kept = 0;
   auto discarded_less = 0;
   auto discarded_more = 0;
   progress_init("Writing output", seqcount);
-  for (auto i = 0; i < seqcount; i++)
-    {
-      auto unmasked = 0;
-      auto * seq = db_getsequence(i);
-      const int len = db_getsequencelen(i);
-      if (parameters.opt_qmask == MASK_NONE)
-        {
-          unmasked = len;
+  for (auto i = 0; i < seqcount; i++) {
+    auto unmasked = 0;
+    auto *seq = db_getsequence(i);
+    const int len = db_getsequencelen(i);
+    if (parameters.opt_qmask == MASK_NONE) {
+      unmasked = len;
+    } else if (parameters.opt_hardmask) {
+      for (auto j = 0; j < len; j++) {
+        if (seq[j] != 'N') {
+          ++unmasked;
         }
-      else if (parameters.opt_hardmask)
-        {
-          for (auto j = 0; j < len; j++)
-            {
-              if (seq[j] != 'N')
-                {
-                  ++unmasked;
-                }
-            }
+      }
+    } else {
+      for (auto j = 0; j < len; j++) {
+        if (isupper(seq[j]) != 0) {
+          ++unmasked;
         }
-      else
-        {
-          for (auto j = 0; j < len; j++)
-            {
-              if (isupper(seq[j]) != 0)
-                {
-                  ++unmasked;
-                }
-            }
-        }
-      auto const unmasked_pct = 100.0 * unmasked / len;
-
-      if (unmasked_pct < parameters.opt_min_unmasked_pct)
-        {
-          ++discarded_less;
-        }
-      else if (unmasked_pct >  parameters.opt_max_unmasked_pct)
-        {
-          ++discarded_more;
-        }
-      else
-        {
-          ++kept;
-
-          if (parameters.opt_fastaout != nullptr)
-            {
-              fasta_print_general(fp_fastaout,
-                                  nullptr,
-                                  seq,
-                                  len,
-                                  db_getheader(i),
-                                  db_getheaderlen(i),
-                                  db_getabundance(i),
-                                  kept,
-                                  -1.0,
-                                  -1, -1, nullptr, 0.0);
-            }
-
-          if (parameters.opt_fastqout != nullptr)
-            {
-              fastq_print_general(fp_fastqout,
-                                  seq,
-                                  len,
-                                  db_getheader(i),
-                                  db_getheaderlen(i),
-                                  db_getquality(i),
-                                  db_getabundance(i),
-                                  kept,
-                                  -1.0);
-            }
-        }
-
-      progress_update(i);
+      }
     }
+    auto const unmasked_pct = 100.0 * unmasked / len;
+
+    if (unmasked_pct < parameters.opt_min_unmasked_pct) {
+      ++discarded_less;
+    } else if (unmasked_pct > parameters.opt_max_unmasked_pct) {
+      ++discarded_more;
+    } else {
+      ++kept;
+
+      if (parameters.opt_fastaout != nullptr) {
+        fasta_print_general(fp_fastaout, nullptr, seq, len, db_getheader(i),
+                            db_getheaderlen(i), db_getabundance(i), kept, -1.0,
+                            -1, -1, nullptr, 0.0);
+      }
+
+      if (parameters.opt_fastqout != nullptr) {
+        fastq_print_general(fp_fastqout, seq, len, db_getheader(i),
+                            db_getheaderlen(i), db_getquality(i),
+                            db_getabundance(i), kept, -1.0);
+      }
+    }
+
+    progress_update(i);
+  }
   progress_done();
 
-  if (! parameters.opt_quiet)
-    {
-      if (parameters.opt_min_unmasked_pct > 0.0)
-        {
-          fprintf(stderr, "%d sequences with less than %.1lf%% unmasked residues discarded\n", discarded_less, parameters.opt_min_unmasked_pct);
-        }
-      if (parameters.opt_max_unmasked_pct < 100.0)
-        {
-          fprintf(stderr, "%d sequences with more than %.1lf%% unmasked residues discarded\n", discarded_more, parameters.opt_max_unmasked_pct);
-        }
-      fprintf(stderr, "%d sequences kept\n", kept);
+  if (!parameters.opt_quiet) {
+    if (parameters.opt_min_unmasked_pct > 0.0) {
+      fprintf(
+          stderr,
+          "%d sequences with less than %.1lf%% unmasked residues discarded\n",
+          discarded_less, parameters.opt_min_unmasked_pct);
     }
+    if (parameters.opt_max_unmasked_pct < 100.0) {
+      fprintf(
+          stderr,
+          "%d sequences with more than %.1lf%% unmasked residues discarded\n",
+          discarded_more, parameters.opt_max_unmasked_pct);
+    }
+    fprintf(stderr, "%d sequences kept\n", kept);
+  }
 
-  if (parameters.opt_log != nullptr)
-    {
-      if (parameters.opt_min_unmasked_pct > 0.0)
-        {
-          fprintf(fp_log, "%d sequences with less than %.1lf%% unmasked residues discarded\n", discarded_less, parameters.opt_min_unmasked_pct);
-        }
-      if (parameters.opt_max_unmasked_pct < 100.0)
-        {
-          fprintf(fp_log, "%d sequences with more than %.1lf%% unmasked residues discarded\n", discarded_more, parameters.opt_max_unmasked_pct);
-        }
-      fprintf(fp_log, "%d sequences kept\n", kept);
+  if (parameters.opt_log != nullptr) {
+    if (parameters.opt_min_unmasked_pct > 0.0) {
+      fprintf(
+          fp_log,
+          "%d sequences with less than %.1lf%% unmasked residues discarded\n",
+          discarded_less, parameters.opt_min_unmasked_pct);
     }
+    if (parameters.opt_max_unmasked_pct < 100.0) {
+      fprintf(
+          fp_log,
+          "%d sequences with more than %.1lf%% unmasked residues discarded\n",
+          discarded_more, parameters.opt_max_unmasked_pct);
+    }
+    fprintf(fp_log, "%d sequences kept\n", kept);
+  }
 
   show_rusage();
   db_free();
 
-  if (fp_fastaout != nullptr)
-    {
-      fclose(fp_fastaout);
-    }
-  if (fp_fastqout != nullptr)
-    {
-      fclose(fp_fastqout);
-    }
+  if (fp_fastaout != nullptr) {
+    fclose(fp_fastaout);
+  }
+  if (fp_fastqout != nullptr) {
+    fclose(fp_fastqout);
+  }
 }
