@@ -2754,7 +2754,7 @@ auto args_init(int argc, char **argv, struct Parameters &parameters) -> void {
       option_v,
       option_version};
 
-  const int commands_count = sizeof(command_options) / sizeof(int);
+  int const commands_count = sizeof(command_options) / sizeof(int);
 
   /*
     Below is a list of all the options that are valid for each command.
@@ -6021,7 +6021,8 @@ auto cmd_cluster(struct Parameters const &parameters) -> void {
         (opt_mothur_shared_out != nullptr);
 
     if ((opt_centroids == nullptr) and (parameters.opt_tabbedout == nullptr) and
-        (not paired_fasta_requested) and (not paired_cluster_reports_requested)) {
+        (not paired_fasta_requested) and
+        (not paired_cluster_reports_requested)) {
       fatal(
           "Paired cluster_unoise requires outputs via "
           "--fastaout/--fastaout_rev, and/or --centroids with --fastaout_rev, "

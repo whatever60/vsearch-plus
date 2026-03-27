@@ -60,8 +60,8 @@
 
 #include "utils/fatal.hpp"
 #include "utils/maps.hpp"
-#include "vsearch.h"
 #include "utils/progress.hpp"
+#include "vsearch.h"
 #include <algorithm> // std::count, std::for_each, std::equal
 #include <cassert>
 #include <cinttypes> // macros PRId64

@@ -62,8 +62,8 @@
 #include "utils/fatal.hpp"
 #include "utils/maps.hpp"
 #include "utils/open_file.hpp"
-#include "vsearch.h"
 #include "utils/progress.hpp"
+#include "vsearch.h"
 #include <cassert>
 #include <cstdio> // std::FILE, std::size_t, std::fclose
 #include <vector>

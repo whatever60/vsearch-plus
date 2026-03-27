@@ -58,9 +58,9 @@
 
 */
 
+#include "dynlibs.h"
 #include "utils/fatal.hpp"
 #include "vsearch.h"
-#include "dynlibs.h"
 #include <algorithm> // std::max
 #include <cstdint>   // uint64_t
 #include <cstdio>    // std::FILE, std::size_t
@@ -247,7 +247,7 @@ auto xfstat(int file_descriptor, xstat_t *buf) -> int {
 #endif
 }
 
-auto xstat(const char *path, xstat_t *buf) -> int {
+auto xstat(char const *path, xstat_t *buf) -> int {
 #ifdef _WIN32
   return _stat64(path, buf);
 #else
@@ -274,7 +274,7 @@ auto xftello(std::FILE *stream) -> uint64_t {
 }
 
 // refactoring: only used in udb.cc
-auto xopen_read(const char *path) -> int {
+auto xopen_read(char const *path) -> int {
 #ifdef _WIN32
   return _open(path, _O_RDONLY | _O_BINARY);
 #else
@@ -283,7 +283,7 @@ auto xopen_read(const char *path) -> int {
 }
 
 // refactoring: only used in udb.cc
-auto xopen_write(const char *path) -> int {
+auto xopen_write(char const *path) -> int {
 #ifdef _WIN32
   return _open(path, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
                _S_IREAD | _S_IWRITE);
@@ -293,11 +293,11 @@ auto xopen_write(const char *path) -> int {
 }
 
 #ifdef _WIN32
-auto arch_dlsym(HMODULE handle, const char *symbol) -> void_func_ptr {
+auto arch_dlsym(HMODULE handle, char const *symbol) -> void_func_ptr {
   return reinterpret_cast<void_func_ptr>(GetProcAddress(handle, symbol));
 }
 #else
-auto arch_dlsym(void *handle, const char *symbol) -> void_func_ptr {
+auto arch_dlsym(void *handle, char const *symbol) -> void_func_ptr {
   return reinterpret_cast<void_func_ptr>(dlsym(handle, symbol));
 }
 #endif

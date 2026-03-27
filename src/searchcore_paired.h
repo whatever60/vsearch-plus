@@ -126,8 +126,7 @@ auto search_onequery_paired(searchinfo_s_paired *searchinfo, int seqmask)
     -> void;
 
 auto search_findbest2_byid_paired(searchinfo_s_paired *si_p,
-                                  searchinfo_s_paired *si_m)
-    -> hit_paired_s *;
+                                  searchinfo_s_paired *si_m) -> hit_paired_s *;
 
 auto search_findbest2_bysize_paired(searchinfo_s_paired *si_p,
                                     searchinfo_s_paired *si_m)

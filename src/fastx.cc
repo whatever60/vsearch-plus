@@ -58,10 +58,10 @@
 
 */
 
+#include "dynlibs.h"
 #include "utils/fatal.hpp"
 #include "utils/span.hpp"
 #include "vsearch.h"
-#include "dynlibs.h"
 #include <algorithm> // std::find_first_of
 #include <array>
 #include <cinttypes> // macros PRIu64 and PRId64
@@ -194,7 +194,7 @@ auto fastx_filter_header(fastx_handle input_handle, bool truncateatspace)
   }
 }
 
-auto fopen_input(const char *filename) -> std::FILE * {
+auto fopen_input(char const *filename) -> std::FILE * {
   /* open the input stream given by filename, but use stdin if name is - */
   if (std::strcmp(filename, "-") == 0) {
     auto const file_descriptor = dup(STDIN_FILENO);
@@ -571,7 +571,7 @@ auto fastx_file_fill_buffer(fastx_handle input_handle) -> uint64_t {
 }
 
 auto fastx_next(fastx_handle input_handle, bool truncateatspace,
-                const unsigned char *char_mapping) -> bool {
+                unsigned char const *char_mapping) -> bool {
   if (input_handle->is_fastq) {
     return fastq_next(input_handle, truncateatspace, char_mapping);
   }

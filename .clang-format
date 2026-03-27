@@ -1,0 +1,5 @@
+BasedOnStyle: LLVM
+QualifierAlignment: Right
+PointerAlignment: Right
+ReferenceAlignment: Right
+SpaceAroundPointerQualifiers: Default

@@ -127,7 +127,8 @@ auto dbindex_addsequence_paired(unsigned int const seqno, int const seqmask)
 
 auto dbindex_addallsequences_paired(int const seqmask) -> void {
   assert(records_for_dbindex_paired != nullptr);
-  auto const seqcount = static_cast<unsigned int>(records_for_dbindex_paired->size());
+  auto const seqcount =
+      static_cast<unsigned int>(records_for_dbindex_paired->size());
   progress_init("Creating k-mer index", seqcount);
   for (auto seqno = 0U; seqno < seqcount; seqno++) {
     dbindex_addsequence_paired(seqno, seqmask);
@@ -183,8 +184,8 @@ auto dbindex_prepare_paired(std::vector<record_paired_s> const *records,
     bitmap_mincount_paired = seqcount + 1;
   }
 
-  kmerbitmap_paired =
-      (struct bitmap_s **)xmalloc(kmerhashsize_paired * sizeof(struct bitmap_s *));
+  kmerbitmap_paired = (struct bitmap_s **)xmalloc(kmerhashsize_paired *
+                                                  sizeof(struct bitmap_s *));
   std::memset(kmerbitmap_paired, 0,
               kmerhashsize_paired * sizeof(struct bitmap_s *));
 
@@ -205,7 +206,8 @@ auto dbindex_prepare_paired(std::vector<record_paired_s> const *records,
 
   std::memset(kmercount_paired, 0, kmerhashsize_paired * sizeof(unsigned int));
 
-  kmerindex_paired = (unsigned int *)xmalloc(kmerindexsize_paired * sizeof(unsigned int));
+  kmerindex_paired =
+      (unsigned int *)xmalloc(kmerindexsize_paired * sizeof(unsigned int));
   dbindex_map_paired = (unsigned int *)xmalloc(seqcount * sizeof(unsigned int));
 
   dbindex_count_paired = 0;

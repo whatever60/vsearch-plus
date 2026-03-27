@@ -113,9 +113,11 @@ inline auto compare_byclusterabundance_paired(void const *a, void const *b)
   auto const *rhs = static_cast<clusterinfo_s_paired const *>(b);
 
   auto const lhs_abundance =
-      (*cluster_abundance_for_sort_paired)[static_cast<std::size_t>(lhs->clusterno)];
+      (*cluster_abundance_for_sort_paired)[static_cast<std::size_t>(
+          lhs->clusterno)];
   auto const rhs_abundance =
-      (*cluster_abundance_for_sort_paired)[static_cast<std::size_t>(rhs->clusterno)];
+      (*cluster_abundance_for_sort_paired)[static_cast<std::size_t>(
+          rhs->clusterno)];
 
   if (lhs_abundance > rhs_abundance) {
     return -1;
@@ -186,7 +188,8 @@ auto load_paired_records_from_fastx_paired(char const *left_filename,
     record.abundance = fastx_get_abundance(left_h);
     record.first_seen = static_cast<int64_t>(records.size());
 
-    auto const left_len = static_cast<std::size_t>(fastx_get_sequence_length(left_h));
+    auto const left_len =
+        static_cast<std::size_t>(fastx_get_sequence_length(left_h));
     record.qsequence_r1.assign(fastx_get_sequence(left_h), left_len);
 
     if (interleaved) {
@@ -202,7 +205,8 @@ auto load_paired_records_from_fastx_paired(char const *left_filename,
     } else {
       if (!fastx_next(right_h, not opt_notrunclabels,
                       chrmap_no_change_vector.data())) {
-        fatal("More forward records than reverse records in paired FASTX input");
+        fatal(
+            "More forward records than reverse records in paired FASTX input");
       }
       auto const right_len =
           static_cast<std::size_t>(fastx_get_sequence_length(right_h));
@@ -223,7 +227,8 @@ auto load_paired_records_from_fastx_paired(char const *left_filename,
         dust(right_buf.data(), static_cast<int>(record.qsequence_r2.size()));
       } else {
         hardmask(left_buf.data(), static_cast<int>(record.qsequence_r1.size()));
-        hardmask(right_buf.data(), static_cast<int>(record.qsequence_r2.size()));
+        hardmask(right_buf.data(),
+                 static_cast<int>(record.qsequence_r2.size()));
       }
 
       record.qsequence_r1.assign(left_buf.data(), record.qsequence_r1.size());
@@ -537,14 +542,16 @@ auto cluster_core_parallel_paired() -> void {
                   db_getsequencelen(seqno_r1) + db_getsequencelen(seqno_r2));
 
               int x = si->hit_count;
-              while ((x > 0) and
-                     ((si->hits[x - 1].count < shared) or
-                      ((si->hits[x - 1].count == shared) and
-                       (static_cast<unsigned int>(
-                            db_getsequencelen(target_seqnos_r1_paired[si->hits[x - 1].target]) +
-                            db_getsequencelen(
-                                target_seqnos_r2_paired[si->hits[x - 1].target])) >
-                        length)))) {
+              while (
+                  (x > 0) and
+                  ((si->hits[x - 1].count < shared) or
+                   ((si->hits[x - 1].count == shared) and
+                    (static_cast<unsigned int>(
+                         db_getsequencelen(
+                             target_seqnos_r1_paired[si->hits[x - 1].target]) +
+                         db_getsequencelen(
+                             target_seqnos_r2_paired[si->hits[x - 1].target])) >
+                     length)))) {
                 --x;
               }
 
@@ -641,12 +648,13 @@ auto cluster_core_parallel_paired() -> void {
                     xfree(nwcigar_r1);
                   }
 
-                  nwcigar_r1 = xstrdup(
-                      lma_r1.align(si->qsequence_r1, tseq, si->qseqlen_r1, tseqlen_r1));
+                  nwcigar_r1 = xstrdup(lma_r1.align(
+                      si->qsequence_r1, tseq, si->qseqlen_r1, tseqlen_r1));
 
-                  lma_r1.alignstats(nwcigar_r1, si->qsequence_r1, tseq, &nwscore_r1,
-                                    &nwalignmentlength_r1, &nwmatches_r1,
-                                    &nwmismatches_r1, &nwgaps_r1);
+                  lma_r1.alignstats(nwcigar_r1, si->qsequence_r1, tseq,
+                                    &nwscore_r1, &nwalignmentlength_r1,
+                                    &nwmatches_r1, &nwmismatches_r1,
+                                    &nwgaps_r1);
                 } else {
                   nwscore_r1 = snwscore_r1;
                   nwalignmentlength_r1 = snwalignmentlength_r1;
@@ -662,12 +670,13 @@ auto cluster_core_parallel_paired() -> void {
                     xfree(nwcigar_r2);
                   }
 
-                  nwcigar_r2 = xstrdup(
-                      lma_r2.align(si->qsequence_r2, tseq, si->qseqlen_r2, tseqlen_r2));
+                  nwcigar_r2 = xstrdup(lma_r2.align(
+                      si->qsequence_r2, tseq, si->qseqlen_r2, tseqlen_r2));
 
-                  lma_r2.alignstats(nwcigar_r2, si->qsequence_r2, tseq, &nwscore_r2,
-                                    &nwalignmentlength_r2, &nwmatches_r2,
-                                    &nwmismatches_r2, &nwgaps_r2);
+                  lma_r2.alignstats(nwcigar_r2, si->qsequence_r2, tseq,
+                                    &nwscore_r2, &nwalignmentlength_r2,
+                                    &nwmatches_r2, &nwmismatches_r2,
+                                    &nwgaps_r2);
                 } else {
                   nwscore_r2 = snwscore_r2;
                   nwalignmentlength_r2 = snwalignmentlength_r2;
@@ -688,18 +697,20 @@ auto cluster_core_parallel_paired() -> void {
                 hit->r1.matches = static_cast<int>(nwmatches_r1);
                 hit->r1.mismatches = static_cast<int>(nwmismatches_r1);
                 hit->r1.nwgaps = static_cast<int>(nwgaps_r1);
-                hit->r1.nwindels =
-                    static_cast<int>(nwalignmentlength_r1 - nwmatches_r1 - nwmismatches_r1);
-                hit->r1.nwalignmentlength = static_cast<int>(nwalignmentlength_r1);
+                hit->r1.nwindels = static_cast<int>(
+                    nwalignmentlength_r1 - nwmatches_r1 - nwmismatches_r1);
+                hit->r1.nwalignmentlength =
+                    static_cast<int>(nwalignmentlength_r1);
 
                 struct hit temp_hit_r1 {};
                 temp_hit_r1.nwalignment = nwcigar_r1;
-                temp_hit_r1.nwalignmentlength = static_cast<int>(nwalignmentlength_r1);
+                temp_hit_r1.nwalignmentlength =
+                    static_cast<int>(nwalignmentlength_r1);
                 temp_hit_r1.nwgaps = static_cast<int>(nwgaps_r1);
                 temp_hit_r1.nwdiff =
                     static_cast<int>(nwalignmentlength_r1 - nwmatches_r1);
-                temp_hit_r1.nwindels = static_cast<int>(nwalignmentlength_r1 - nwmatches_r1 -
-                                                        nwmismatches_r1);
+                temp_hit_r1.nwindels = static_cast<int>(
+                    nwalignmentlength_r1 - nwmatches_r1 - nwmismatches_r1);
                 temp_hit_r1.matches = static_cast<int>(nwmatches_r1);
                 temp_hit_r1.mismatches = static_cast<int>(nwmismatches_r1);
                 temp_hit_r1.shortest =
@@ -707,7 +718,8 @@ auto cluster_core_parallel_paired() -> void {
                 temp_hit_r1.longest =
                     std::max(si->qseqlen_r1, static_cast<int>(tseqlen_r1));
                 align_trim(&temp_hit_r1);
-                hit->r1.internal_alignmentlength = temp_hit_r1.internal_alignmentlength;
+                hit->r1.internal_alignmentlength =
+                    temp_hit_r1.internal_alignmentlength;
                 hit->r1.internal_gaps = temp_hit_r1.internal_gaps;
                 hit->r1.internal_indels = temp_hit_r1.internal_indels;
                 hit->r1.trim_q_left = temp_hit_r1.trim_q_left;
@@ -722,18 +734,20 @@ auto cluster_core_parallel_paired() -> void {
                 hit->r2.matches = static_cast<int>(nwmatches_r2);
                 hit->r2.mismatches = static_cast<int>(nwmismatches_r2);
                 hit->r2.nwgaps = static_cast<int>(nwgaps_r2);
-                hit->r2.nwindels =
-                    static_cast<int>(nwalignmentlength_r2 - nwmatches_r2 - nwmismatches_r2);
-                hit->r2.nwalignmentlength = static_cast<int>(nwalignmentlength_r2);
+                hit->r2.nwindels = static_cast<int>(
+                    nwalignmentlength_r2 - nwmatches_r2 - nwmismatches_r2);
+                hit->r2.nwalignmentlength =
+                    static_cast<int>(nwalignmentlength_r2);
 
                 struct hit temp_hit_r2 {};
                 temp_hit_r2.nwalignment = nwcigar_r2;
-                temp_hit_r2.nwalignmentlength = static_cast<int>(nwalignmentlength_r2);
+                temp_hit_r2.nwalignmentlength =
+                    static_cast<int>(nwalignmentlength_r2);
                 temp_hit_r2.nwgaps = static_cast<int>(nwgaps_r2);
                 temp_hit_r2.nwdiff =
                     static_cast<int>(nwalignmentlength_r2 - nwmatches_r2);
-                temp_hit_r2.nwindels = static_cast<int>(nwalignmentlength_r2 - nwmatches_r2 -
-                                                        nwmismatches_r2);
+                temp_hit_r2.nwindels = static_cast<int>(
+                    nwalignmentlength_r2 - nwmatches_r2 - nwmismatches_r2);
                 temp_hit_r2.matches = static_cast<int>(nwmatches_r2);
                 temp_hit_r2.mismatches = static_cast<int>(nwmismatches_r2);
                 temp_hit_r2.shortest =
@@ -741,7 +755,8 @@ auto cluster_core_parallel_paired() -> void {
                 temp_hit_r2.longest =
                     std::max(si->qseqlen_r2, static_cast<int>(tseqlen_r2));
                 align_trim(&temp_hit_r2);
-                hit->r2.internal_alignmentlength = temp_hit_r2.internal_alignmentlength;
+                hit->r2.internal_alignmentlength =
+                    temp_hit_r2.internal_alignmentlength;
                 hit->r2.internal_gaps = temp_hit_r2.internal_gaps;
                 hit->r2.internal_indels = temp_hit_r2.internal_indels;
                 hit->r2.trim_q_left = temp_hit_r2.trim_q_left;
@@ -757,8 +772,10 @@ auto cluster_core_parallel_paired() -> void {
                 hit->nwalignment_cols_total =
                     hit->r1.nwalignmentlength + hit->r2.nwalignmentlength;
                 hit->internal_alignment_cols_total =
-                    hit->r1.internal_alignmentlength + hit->r2.internal_alignmentlength;
-                hit->internal_gaps_total = hit->r1.internal_gaps + hit->r2.internal_gaps;
+                    hit->r1.internal_alignmentlength +
+                    hit->r2.internal_alignmentlength;
+                hit->internal_gaps_total =
+                    hit->r1.internal_gaps + hit->r2.internal_gaps;
                 hit->internal_indels_total =
                     hit->r1.internal_indels + hit->r2.internal_indels;
 
@@ -804,12 +821,14 @@ auto cluster_core_parallel_paired() -> void {
       if (best != nullptr) {
         int const target = best->target;
         clusterinfo_paired[myseqno].seqno = myseqno;
-        clusterinfo_paired[myseqno].clusterno = clusterinfo_paired[target].clusterno;
+        clusterinfo_paired[myseqno].clusterno =
+            clusterinfo_paired[target].clusterno;
         clusterinfo_paired[myseqno].target_seqno = target;
         clusterinfo_paired[myseqno].strand = best->strand;
         clusterinfo_paired[myseqno].id = best->id;
         clusterinfo_paired[myseqno].perfect =
-            (best->mismatches_total == 0) and (best->internal_indels_total == 0) and
+            (best->mismatches_total == 0) and
+            (best->internal_indels_total == 0) and
             (best->internal_gaps_total == 0);
       } else {
         extra_list[extra_count] = i;
@@ -880,13 +899,14 @@ auto cluster_core_serial_paired() -> void {
     if (best != nullptr) {
       int const target = best->target;
       clusterinfo_paired[seqno].seqno = seqno;
-      clusterinfo_paired[seqno].clusterno = clusterinfo_paired[target].clusterno;
+      clusterinfo_paired[seqno].clusterno =
+          clusterinfo_paired[target].clusterno;
       clusterinfo_paired[seqno].target_seqno = target;
       clusterinfo_paired[seqno].strand = best->strand;
       clusterinfo_paired[seqno].id = best->id;
-      clusterinfo_paired[seqno].perfect =
-          (best->mismatches_total == 0) and (best->internal_indels_total == 0) and
-          (best->internal_gaps_total == 0);
+      clusterinfo_paired[seqno].perfect = (best->mismatches_total == 0) and
+                                          (best->internal_indels_total == 0) and
+                                          (best->internal_gaps_total == 0);
     } else {
       clusterinfo_paired[seqno].seqno = seqno;
       clusterinfo_paired[seqno].clusterno = clusters_paired;
@@ -977,12 +997,12 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
     target_lengths_paired[static_cast<std::size_t>(seqno)] =
         static_cast<unsigned int>(record.qsequence_r1.size() +
                                   record.qsequence_r2.size());
-    longest_end_paired = std::max(
-        longest_end_paired,
-        static_cast<int>(
-            std::max(record.qsequence_r1.size(), record.qsequence_r2.size())));
-    nucleotide_count_paired += static_cast<int64_t>(
-        record.qsequence_r1.size() + record.qsequence_r2.size());
+    longest_end_paired =
+        std::max(longest_end_paired,
+                 static_cast<int>(std::max(record.qsequence_r1.size(),
+                                           record.qsequence_r2.size())));
+    nucleotide_count_paired += static_cast<int64_t>(record.qsequence_r1.size() +
+                                                    record.qsequence_r2.size());
   }
 
   if ((opt_maxrejects == 0) or (opt_maxrejects > seqcount_paired)) {
@@ -996,8 +1016,8 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
   tophits_paired = std::min(tophits_paired, seqcount_paired);
 
   if (opt_log != nullptr) {
-    uint64_t const slots =
-        1ULL << (static_cast<uint64_t>(opt_wordlength) << 1ULL);
+    uint64_t const slots = 1ULL
+                           << (static_cast<uint64_t>(opt_wordlength) << 1ULL);
     std::fprintf(fp_log, "\n");
     std::fprintf(fp_log, "      Alphabet  nt\n");
     std::fprintf(fp_log, "    Word width  %" PRId64 "\n", opt_wordlength);
@@ -1023,8 +1043,8 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
     cluster_core_parallel_paired();
   }
 
-  std::vector<int64_t> cluster_abundance(static_cast<std::size_t>(clusters_paired),
-                                         0);
+  std::vector<int64_t> cluster_abundance(
+      static_cast<std::size_t>(clusters_paired), 0);
   for (int seqno = 0; seqno < seqcount_paired; ++seqno) {
     auto const clusterno =
         clusterinfo_paired[static_cast<std::size_t>(seqno)].clusterno;
@@ -1033,23 +1053,25 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
                    : 1;
   }
 
-  auto const minmax_elements = std::minmax_element(cluster_abundance.cbegin(),
-                                                   cluster_abundance.cend());
+  auto const minmax_elements =
+      std::minmax_element(cluster_abundance.cbegin(), cluster_abundance.cend());
   auto const abundance_min =
       cluster_abundance.empty() ? 0 : *std::get<0>(minmax_elements);
   auto const abundance_max =
       cluster_abundance.empty() ? 0 : *std::get<1>(minmax_elements);
-  int const singletons =
-      std::count(cluster_abundance.cbegin(), cluster_abundance.cend(), int64_t{1});
+  int const singletons = std::count(cluster_abundance.cbegin(),
+                                    cluster_abundance.cend(), int64_t{1});
 
   std::vector<clusterinfo_s_paired> clusterinfo_sorted = clusterinfo_paired;
   progress_init("Sorting clusters", static_cast<uint64_t>(clusters_paired));
   cluster_abundance_for_sort_paired = &cluster_abundance;
   if (opt_clusterout_sort != 0) {
-    std::qsort(clusterinfo_sorted.data(), static_cast<std::size_t>(seqcount_paired),
+    std::qsort(clusterinfo_sorted.data(),
+               static_cast<std::size_t>(seqcount_paired),
                sizeof(clusterinfo_s_paired), compare_byclusterabundance_paired);
   } else {
-    std::qsort(clusterinfo_sorted.data(), static_cast<std::size_t>(seqcount_paired),
+    std::qsort(clusterinfo_sorted.data(),
+               static_cast<std::size_t>(seqcount_paired),
                sizeof(clusterinfo_s_paired), compare_byclusterno_paired);
   }
   cluster_abundance_for_sort_paired = nullptr;
@@ -1119,17 +1141,16 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
       }
 
       if (opt_clusters != nullptr) {
-        std::snprintf(fn_clusters.data(), fn_clusters.size(), "%s%d", opt_clusters,
-                      clusterno);
+        std::snprintf(fn_clusters.data(), fn_clusters.size(), "%s%d",
+                      opt_clusters, clusterno);
         fp_clusters = fopen_output(fn_clusters.data());
         if (fp_clusters == nullptr) {
           fatal("Unable to open clusters file for writing");
         }
       }
 
-      auto centroid_record =
-          filtered_records[static_cast<std::size_t>(
-              centroid_seqnos_paired[static_cast<std::size_t>(clusterno)])];
+      auto centroid_record = filtered_records[static_cast<std::size_t>(
+          centroid_seqnos_paired[static_cast<std::size_t>(clusterno)])];
       centroid_record.abundance =
           cluster_abundance[static_cast<std::size_t>(clusterno)];
       centroid_records.push_back(centroid_record);
@@ -1145,7 +1166,8 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
             static_cast<unsigned int>(centroid_record.abundance), clusterno + 1,
             -1.0, -1, clusterid, nullptr, 0.0);
       }
-      if ((fp_fastaout_left != nullptr) and (fp_fastaout_left != fp_centroids_left)) {
+      if ((fp_fastaout_left != nullptr) and
+          (fp_fastaout_left != fp_centroids_left)) {
         fasta_print_general(
             fp_fastaout_left, nullptr, centroid_record.qsequence_r1.c_str(),
             static_cast<int>(centroid_record.qsequence_r1.size()),
@@ -1183,14 +1205,14 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
                           static_cast<int>(record.qsequence_r1.size()),
                           left_header.c_str(),
                           static_cast<int>(left_header.size()),
-                          static_cast<unsigned int>(record.abundance), 0, -1.0, -1,
-                          -1, nullptr, 0.0);
+                          static_cast<unsigned int>(record.abundance), 0, -1.0,
+                          -1, -1, nullptr, 0.0);
       fasta_print_general(fp_clusters, nullptr, record.qsequence_r2.c_str(),
                           static_cast<int>(record.qsequence_r2.size()),
                           right_header.c_str(),
                           static_cast<int>(right_header.size()),
-                          static_cast<unsigned int>(record.abundance), 0, -1.0, -1,
-                          -1, nullptr, 0.0);
+                          static_cast<unsigned int>(record.abundance), 0, -1.0,
+                          -1, -1, nullptr, 0.0);
     }
 
     if (fp_uc != nullptr) {
@@ -1201,20 +1223,20 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
       if (seqno == centroid_seqno) {
         std::fprintf(fp_uc, "S\t%d\t%u\t*\t*\t*\t*\t*\t", clusterno, qseqlen);
         header_fprint_strip(fp_uc, record.header.c_str(),
-                            static_cast<int64_t>(record.header.size()), opt_xsize,
-                            opt_xee, opt_xlength);
+                            static_cast<int64_t>(record.header.size()),
+                            opt_xsize, opt_xee, opt_xlength);
         std::fprintf(fp_uc, "\t*\n");
       } else {
         auto const target_seqno =
             (info.target_seqno >= 0) ? info.target_seqno : centroid_seqno;
         auto const &target_record =
             filtered_records[static_cast<std::size_t>(target_seqno)];
-        std::fprintf(fp_uc, "H\t%d\t%u\t%.1f\t%c\t0\t0\t%s\t", clusterno, qseqlen,
-                     info.id, (info.strand != 0) ? '-' : '+',
+        std::fprintf(fp_uc, "H\t%d\t%u\t%.1f\t%c\t0\t0\t%s\t", clusterno,
+                     qseqlen, info.id, (info.strand != 0) ? '-' : '+',
                      info.perfect ? "=" : "*");
         header_fprint_strip(fp_uc, record.header.c_str(),
-                            static_cast<int64_t>(record.header.size()), opt_xsize,
-                            opt_xee, opt_xlength);
+                            static_cast<int64_t>(record.header.size()),
+                            opt_xsize, opt_xee, opt_xlength);
         std::fprintf(fp_uc, "\t");
         header_fprint_strip(fp_uc, target_record.header.c_str(),
                             static_cast<int64_t>(target_record.header.size()),
@@ -1265,7 +1287,8 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
   } else {
     if (not opt_quiet) {
       std::fprintf(stderr,
-                   "Clusters: %d Size min %" PRId64 ", max %" PRId64 ", avg %.1f\n",
+                   "Clusters: %d Size min %" PRId64 ", max %" PRId64
+                   ", avg %.1f\n",
                    clusters_paired, abundance_min, abundance_max,
                    1.0 * seqcount_paired / clusters_paired);
       std::fprintf(stderr,
@@ -1306,8 +1329,8 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
   if (any_otu_table_output) {
     otutable_init();
 
-    auto const make_otu_label = [&](int const clusterno,
-                                    record_paired_s const &record) -> std::string {
+    auto const make_otu_label =
+        [&](int const clusterno, record_paired_s const &record) -> std::string {
       if (opt_relabel != nullptr) {
         return std::string{opt_relabel} + std::to_string(clusterno + 1);
       }
@@ -1335,10 +1358,12 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
       auto const centroid_seqno =
           centroid_seqnos_paired[static_cast<std::size_t>(clusterno)];
       auto const otu_label = make_otu_label(
-          clusterno, filtered_records[static_cast<std::size_t>(centroid_seqno)]);
-      otutable_add(filtered_records[static_cast<std::size_t>(seqno)].header.c_str(),
-                   otu_label.c_str(),
-                   filtered_records[static_cast<std::size_t>(seqno)].abundance);
+          clusterno,
+          filtered_records[static_cast<std::size_t>(centroid_seqno)]);
+      otutable_add(
+          filtered_records[static_cast<std::size_t>(seqno)].header.c_str(),
+          otu_label.c_str(),
+          filtered_records[static_cast<std::size_t>(seqno)].abundance);
     }
 
     if (opt_biomout != nullptr) {
@@ -1397,5 +1422,6 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
 
 auto cluster_unoise_paired(struct Parameters const &parameters, char *cmdline,
                            char *progheader) -> void {
-  cluster_paired(parameters, parameters.opt_cluster_unoise, cmdline, progheader);
+  cluster_paired(parameters, parameters.opt_cluster_unoise, cmdline,
+                 progheader);
 }

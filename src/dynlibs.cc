@@ -58,9 +58,9 @@
 
 */
 
+#include "dynlibs.h"
 #include "utils/fatal.hpp"
 #include "vsearch.h"
-#include "dynlibs.h"
 #include <cstdio> // std::FILE
 #include <string>
 
@@ -77,7 +77,7 @@ const std::string gz_libname = "libz.so.1";
 void *gz_lib;
 #endif
 
-gzFile ZEXPORT(*gzdopen_p) OF((int, const char *));
+gzFile ZEXPORT(*gzdopen_p) OF((int, char const *));
 int ZEXPORT(*gzclose_p) OF((gzFile));
 int ZEXPORT(*gzread_p) OF((gzFile, void *, unsigned));
 
@@ -110,7 +110,7 @@ auto dynlibs_open() -> void {
   gz_lib = dlopen(gz_libname.data(), RTLD_LAZY);
 #endif
   if (gz_lib != nullptr) {
-    gzdopen_p = (gzFile(*)(int, const char *))arch_dlsym(gz_lib, "gzdopen");
+    gzdopen_p = (gzFile(*)(int, char const *))arch_dlsym(gz_lib, "gzdopen");
     gzclose_p = (int (*)(gzFile))arch_dlsym(gz_lib, "gzclose");
     gzread_p = (int (*)(gzFile, void *, unsigned))arch_dlsym(gz_lib, "gzread");
     if (not((gzdopen_p != nullptr) && (gzclose_p != nullptr) &&
