@@ -18,14 +18,16 @@
 #ifndef SEARCHCORE_PAIRED_H
 #define SEARCHCORE_PAIRED_H
 
+#include "cpu.h"
+
 #include <cstdint>
 #include <string>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 
 struct uhandle_s;
 struct minheap_s;
+struct s16info_s;
+class LinearMemoryAligner;
 
 struct record_paired_s {
   std::string header;
@@ -76,17 +78,6 @@ struct hit_paired_s {
   double mid = 0.0;
 };
 
-struct kmer_index_paired_s {
-  std::unordered_map<unsigned int, std::vector<int>> r1_postings;
-  std::unordered_map<unsigned int, std::vector<int>> r2_postings;
-};
-
-struct query_search_paired_s {
-  std::vector<unsigned int> target_kmer_scores;
-  unsigned int qk_r1 = 0U;
-  unsigned int qk_r2 = 0U;
-};
-
 struct searchinfo_s_paired {
   int query_no = 0;
   int strand = 0;
@@ -106,32 +97,53 @@ struct searchinfo_s_paired {
   unsigned int const *kmersample_r1 = nullptr;
   unsigned int const *kmersample_r2 = nullptr;
 
-  std::vector<unsigned short> kmers_v;
-  unsigned short *kmers = nullptr;
+  std::vector<count_t> kmers_v;
+  count_t *kmers = nullptr;
 
-  std::size_t target_count = 0U;
-  kmer_index_paired_s const *target_kmer_index = nullptr;
-  std::vector<unsigned int> const *target_lengths = nullptr;
+  std::vector<unsigned int> const *target_seqnos_r1 = nullptr;
+  std::vector<unsigned int> const *target_seqnos_r2 = nullptr;
 
-  std::vector<hit_paired_s> hits;
+  std::vector<hit_paired_s> hits_v;
+  hit_paired_s *hits = nullptr;
   int hit_count = 0;
 
   int accepts = 0;
   int rejects = 0;
   int finalized = 0;
 
-  struct uhandle_s *uh = nullptr;
+  struct uhandle_s *uh_r1 = nullptr;
+  struct uhandle_s *uh_r2 = nullptr;
+  struct s16info_s *s_r1 = nullptr;
+  struct s16info_s *s_r2 = nullptr;
+  LinearMemoryAligner *lma_r1 = nullptr;
+  LinearMemoryAligner *lma_r2 = nullptr;
   struct minheap_s *m = nullptr;
 };
 
-auto search_topscores_paired(searchinfo_s_paired *searchinfo, int wordlength)
-    -> void;
+auto search_topscores_paired(searchinfo_s_paired *searchinfo) -> void;
 
 auto search_onequery_paired(searchinfo_s_paired *searchinfo, int seqmask)
     -> void;
 
+auto search_findbest2_byid_paired(searchinfo_s_paired *si_p,
+                                  searchinfo_s_paired *si_m)
+    -> hit_paired_s *;
+
+auto search_findbest2_bysize_paired(searchinfo_s_paired *si_p,
+                                    searchinfo_s_paired *si_m)
+    -> hit_paired_s *;
+
+auto search_acceptable_unaligned_paired(searchinfo_s_paired const &searchinfo,
+                                        int target) -> bool;
+
+auto search_acceptable_aligned_paired(searchinfo_s_paired const &searchinfo,
+                                      hit_paired_s *hit) -> bool;
+
 auto search_joinhits_paired(searchinfo_s_paired *si_plus,
                             searchinfo_s_paired *si_minus,
                             std::vector<hit_paired_s> &hits) -> void;
+
+auto search_enough_kmers_paired(searchinfo_s_paired const &searchinfo,
+                                unsigned int count) -> bool;
 
 #endif

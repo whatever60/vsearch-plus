@@ -20,6 +20,7 @@
 
 struct Parameters;
 
-auto cluster_unoise_paired(struct Parameters const &parameters) -> void;
+auto cluster_unoise_paired(struct Parameters const &parameters, char *cmdline,
+                           char *progheader) -> void;
 
 #endif

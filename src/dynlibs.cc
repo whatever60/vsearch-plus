@@ -58,9 +58,9 @@
 
 */
 
-#include "dynlibs.h"
 #include "utils/fatal.hpp"
 #include "vsearch.h"
+#include "dynlibs.h"
 #include <cstdio> // std::FILE
 #include <string>
 

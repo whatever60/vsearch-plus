@@ -58,9 +58,9 @@
 
 */
 
-#include "dynlibs.h"
 #include "utils/fatal.hpp"
 #include "vsearch.h"
+#include "dynlibs.h"
 #include <algorithm> // std::max
 #include <cstdint>   // uint64_t
 #include <cstdio>    // std::FILE, std::size_t

@@ -1,0 +1,135 @@
+command dispatch
+  execute-command chain
+    -> cmd_cluster(parameters)
+      -> cluster_unoise(cmdline, progheader)
+        -> cluster(opt_cluster_unoise, cmdline, progheader)
+
+cluster() setup phase
+  -> fopen_output(...) for enabled outputs
+  -> db_read(dbname, 0)
+  -> otutable_init()
+  -> results_show_samheader(...)
+  -> optional dust_all() / hardmask_all()
+  -> db_sortbyabundance()   [for cluster_unoise]
+  -> dbindex_prepare(1, opt_qmask)
+  -> allocate clusterinfo, compute tophits
+  -> if opt_threads == 1: cluster_core_serial()
+     else:                cluster_core_parallel()
+
+cluster_core_parallel()
+  -> threads_init()
+     -> xpthread_attr_init/setdetachstate
+     -> allocate thread_info[]
+     -> xpthread_create(..., threads_worker, ...)
+  -> allocate si_plus / si_minus arrays
+  -> for each si: cluster_query_init(si)
+     -> unique_init()
+     -> minheap_init(tophits)
+     -> search16_init(...)
+     -> xmalloc qsequence / kmers / hits
+  -> main round loop over query batches
+     -> prepare si.query_no / strand for this batch
+     -> threads_wakeup(queries)
+        -> split queries among workers
+        -> signal each worker
+        -> wait each worker done
+
+thread worker path (parallel)
+  threads_worker()
+    -> cluster_worker(t)
+      -> for each assigned query:
+         -> cluster_query_core(si_plus + ...)
+            -> db_getheaderlen/getheader/getabundance/getsequencelen/getsequence
+            -> optional reverse_complement
+            -> search_onequery(si, opt_qmask)
+               -> search16_qprep(...)
+               -> new LinearMemoryAligner(scoring)
+               -> unique_count(...)
+               -> search_topscores(si)
+                  -> dbindex_getcount()
+                  -> memset(kmers)
+                  -> minheap_clear()
+                  -> per query kmer:
+                     -> dbindex_getbitmap(kmer)
+                        -> increment_counters_from_bitmap_ssse3/sse2 (or scalar)
+                     -> else dbindex_getmatchlist/getmatchcount and increment
+                  -> dbindex_getmapping(i), db_getsequencelen(seqno), minheap_add(...)
+                  -> minheap_sort()
+               -> hit scan loop:
+                  -> minheap_poplast()
+                  -> search_acceptable_unaligned(...)
+                     -> search_unaligned_numeric_filters_pass(...)
+                     -> seqcmp prefix/suffix checks
+                     -> self/selfid checks
+                  -> delayed queue
+                  -> when delayed full (or end): align_delayed(si)
+                     -> build target_list from delayed hits
+                     -> search16(...)  [SIMD batch]
+                        -> internal kernel path uses dprofile_fill16 + aligncolumns_rest
+                     -> per aligned hit:
+                        -> if SIMD overflow:
+                           -> lma.align(...)
+                           -> lma.alignstats(...)
+                        -> align_trim(hit)
+                           -> search_aligned_compute_identity_metrics(...)
+                        -> search_acceptable_aligned(...)
+                           -> search_aligned_compute_identity_metrics(...)
+                           -> search_aligned_threshold_filters_pass(...)
+                           -> UNOISE branch: skew/beta decision
+                     -> free ignored cigars
+               -> delete LinearMemoryAligner
+         -> optional reverse strand same path when opt_strand > 1
+
+cluster_core_parallel() post-thread analysis (sequential, main thread)
+  -> extra_list integration for new no-hit sequences in same round
+     -> unique_count_shared(...)
+     -> search_enough_kmers(...)
+     -> insert/shift ranked hit list
+  -> if added hits:
+     -> reset statuses
+     -> per hit:
+        -> search_acceptable_unaligned(...)
+        -> if pass and not aligned:
+           -> search16(..., n=1)
+           -> if overflow: lma.align + lma.alignstats
+           -> align_trim(hit)
+        -> search_acceptable_aligned(...)
+     -> trim undetermined hits and free cigar where needed
+  -> choose best:
+     -> search_findbest2_bysize(...) or search_findbest2_byid(...)
+  -> if best hit:
+     -> cluster_core_results_hit(...)
+        -> optional otutable_add(...)
+        -> optional results_show_uc_one / alnout / samout / fastapairs / qsegout / tsegout / userout / blast6
+        -> optional fasta_print_general(matched)
+  -> else no hit:
+     -> dbindex_addsequence(myseqno, opt_qmask)
+     -> cluster_core_results_nohit(...)
+        -> optional otutable_add(...)
+        -> optional UC S-line / userout / blast6 / fasta_print_general(notmatched)
+     -> ++clusters
+  -> free per-query hit alignments
+  -> progress_update(...)
+  -> end rounds: progress_done()
+  -> cluster_query_exit(si) for each slot
+     -> search16_exit
+     -> unique_exit
+     -> minheap_exit
+     -> free qsequence/hits/kmers
+  -> free si_plus/si_minus
+  -> threads_exit()
+     -> signal workers quit
+     -> xpthread_join
+     -> destroy mutex/cond
+
+cluster() tail phase (sequential)
+  -> compute cluster_abundance/cluster_size
+  -> qsort clusterinfo by cluster order
+  -> write centroids/UC/clusters outputs
+  -> optional msa(...) per cluster for msaout/consout/profile
+  -> free all stored cigar strings
+  -> otutable_print_biomout / otutabout / mothur_shared_out
+  -> close outputs + clean_up() for userfields
+  -> dbindex_free()
+  -> db_free()
+  -> show_rusage()

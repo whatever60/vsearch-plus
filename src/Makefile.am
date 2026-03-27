@@ -168,6 +168,7 @@ cut.cc \
 db.cc \
 dbhash.cc \
 dbindex.cc \
+dbindex_paired.cc \
 derep.cc \
 derep_prefix.cc \
 derep_smallmem.cc \

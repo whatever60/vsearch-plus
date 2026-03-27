@@ -6015,12 +6015,18 @@ auto cmd_cluster(struct Parameters const &parameters) -> void {
     auto const paired_fasta_requested =
         ((parameters.opt_fastaout != nullptr) and
          (parameters.opt_fastaout_rev != nullptr));
+    auto const paired_cluster_reports_requested =
+        (parameters.opt_uc != nullptr) or (opt_clusters != nullptr) or
+        (opt_otutabout != nullptr) or (opt_biomout != nullptr) or
+        (opt_mothur_shared_out != nullptr);
 
     if ((opt_centroids == nullptr) and (parameters.opt_tabbedout == nullptr) and
-        (not paired_fasta_requested)) {
+        (not paired_fasta_requested) and (not paired_cluster_reports_requested)) {
       fatal(
           "Paired cluster_unoise requires outputs via "
-          "--fastaout/--fastaout_rev, and/or --centroids, and/or --tabbedout");
+          "--fastaout/--fastaout_rev, and/or --centroids with --fastaout_rev, "
+          "and/or --tabbedout, and/or --clusters/--uc/--otutabout/--biomout/"
+          "--mothur_shared_out");
     }
 
     if ((parameters.opt_fastaout != nullptr) and
@@ -6041,7 +6047,18 @@ auto cmd_cluster(struct Parameters const &parameters) -> void {
             "write paired centroid FASTA output");
     }
 
-    cluster_unoise_paired(parameters);
+    if ((opt_alnout != nullptr) or (opt_samout != nullptr) or
+        (opt_userout != nullptr) or (opt_blast6out != nullptr) or
+        (opt_fastapairs != nullptr) or (opt_qsegout != nullptr) or
+        (opt_tsegout != nullptr) or (opt_matched != nullptr) or
+        (opt_matched2 != nullptr) or (opt_notmatched != nullptr) or
+        (opt_notmatched2 != nullptr) or (opt_msaout != nullptr) or
+        (opt_consout != nullptr) or (opt_profile != nullptr)) {
+      fatal("Paired cluster_unoise currently supports paired centroid FASTA, "
+            "--tabbedout, --clusters, --uc, and OTU-table outputs only");
+    }
+
+    cluster_unoise_paired(parameters, cmdline, prog_header.data());
     return;
   }
 
