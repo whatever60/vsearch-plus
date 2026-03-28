@@ -90,6 +90,14 @@ auto free_rejected_alignments_paired(searchinfo_s_paired *search_info)
 
 } // end of anonymous namespace
 
+auto paired_header_key_paired(std::string const &header) -> std::string {
+  auto const split = header.find_first_of(" \t");
+  if (split == std::string::npos) {
+    return header;
+  }
+  return header.substr(0U, split);
+}
+
 /* per thread data */
 
 inline auto hit_compare_byid_typed_paired(hit_paired_s const *lhs,

@@ -888,8 +888,8 @@ auto cluster_core_parallel_paired() -> void {
           db_add(false, record.header.c_str(), record.qsequence_r1.c_str(),
                  nullptr, record.header.size(), record.qsequence_r1.size(),
                  std::max<int64_t>(record.abundance, 1));
-          db_add(false, record.header.c_str(), record.qsequence_r2.c_str(),
-                 nullptr, record.header.size(), record.qsequence_r2.size(),
+          db_add(false, record.header_r2.c_str(), record.qsequence_r2.c_str(),
+                 nullptr, record.header_r2.size(), record.qsequence_r2.size(),
                  std::max<int64_t>(record.abundance, 1));
 
           target_seqnos_r1_paired[myseqno] = left_seqno;
@@ -1019,8 +1019,8 @@ auto cluster_core_serial_paired() -> void {
         db_add(false, record.header.c_str(), record.qsequence_r1.c_str(),
                nullptr, record.header.size(), record.qsequence_r1.size(),
                std::max<int64_t>(record.abundance, 1));
-        db_add(false, record.header.c_str(), record.qsequence_r2.c_str(),
-               nullptr, record.header.size(), record.qsequence_r2.size(),
+        db_add(false, record.header_r2.c_str(), record.qsequence_r2.c_str(),
+               nullptr, record.header_r2.size(), record.qsequence_r2.size(),
                std::max<int64_t>(record.abundance, 1));
 
         target_seqnos_r1_paired[seqno] = left_seqno;
@@ -1080,6 +1080,13 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
               "expected left/right entries",
               parameters.opt_cluster_unoise);
       }
+      record.header_r2 = fastx_get_header(left_h);
+      if (paired_header_key_paired(record.header) !=
+          paired_header_key_paired(record.header_r2)) {
+        auto const message = std::string{"Paired FASTX headers differ ("} +
+                             record.header + " vs " + record.header_r2 + ")";
+        fatal(message.c_str());
+      }
       auto const right_len =
           static_cast<std::size_t>(fastx_get_sequence_length(left_h));
       record.qsequence_r2.assign(fastx_get_sequence(left_h), right_len);
@@ -1088,6 +1095,13 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
                       chrmap_no_change_vector.data())) {
         fatal(
             "More forward records than reverse records in paired FASTX input");
+      }
+      record.header_r2 = fastx_get_header(right_h);
+      if (paired_header_key_paired(record.header) !=
+          paired_header_key_paired(record.header_r2)) {
+        auto const message = std::string{"Paired FASTX headers differ ("} +
+                             record.header + " vs " + record.header_r2 + ")";
+        fatal(message.c_str());
       }
       auto const right_len =
           static_cast<std::size_t>(fastx_get_sequence_length(right_h));
@@ -1373,8 +1387,8 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
         fasta_print_general(
             fp_centroids_right, nullptr, centroid_record.qsequence_r2.c_str(),
             static_cast<int>(centroid_record.qsequence_r2.size()),
-            centroid_record.header.c_str(),
-            static_cast<int>(centroid_record.header.size()),
+            centroid_record.header_r2.c_str(),
+            static_cast<int>(centroid_record.header_r2.size()),
             static_cast<unsigned int>(centroid_record.abundance), clusterno + 1,
             -1.0, -1, clusterid, nullptr, 0.0);
       }
@@ -1393,18 +1407,16 @@ auto cluster_paired(struct Parameters const &parameters, char *dbname,
     }
 
     if (opt_clusters != nullptr) {
-      auto const left_header = record.header + "/1";
-      auto const right_header = record.header + "/2";
       fasta_print_general(fp_clusters, nullptr, record.qsequence_r1.c_str(),
                           static_cast<int>(record.qsequence_r1.size()),
-                          left_header.c_str(),
-                          static_cast<int>(left_header.size()),
+                          record.header.c_str(),
+                          static_cast<int>(record.header.size()),
                           static_cast<unsigned int>(record.abundance), 0, -1.0,
                           -1, -1, nullptr, 0.0);
       fasta_print_general(fp_clusters, nullptr, record.qsequence_r2.c_str(),
                           static_cast<int>(record.qsequence_r2.size()),
-                          right_header.c_str(),
-                          static_cast<int>(right_header.size()),
+                          record.header_r2.c_str(),
+                          static_cast<int>(record.header_r2.size()),
                           static_cast<unsigned int>(record.abundance), 0, -1.0,
                           -1, -1, nullptr, 0.0);
     }

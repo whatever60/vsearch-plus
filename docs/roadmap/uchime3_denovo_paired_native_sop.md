@@ -45,7 +45,7 @@ It is based on:
   - `--nonchimeras` / `--nonchimeras2`
   - `--chimeras_tsv`
   - `--nonchimeras_tsv`
-- Split and interleaved paired input now normalize headers to the same base paired ID.
+- Split and interleaved paired input now preserve separate R1 and R2 headers while requiring the same first whitespace-delimited token.
 - A real heap-corruption bug in the paired native engine was fixed:
   - query-part buffers were initially sized from per-end ceilings instead of the concatenated partition length
   - that was unsafe for concatenated paired partitioning and caused teardown-time allocator crashes
@@ -196,7 +196,7 @@ In the paired port, the unit added is a paired target record through `dbindex_ad
 Paired-only logic belongs in a few well-defined places:
 
 - paired FASTX loading and synchronization
-- paired header normalization across split/interleaved input
+- paired first-token header consistency checks across split/interleaved input
 - paired candidate scoring across R1 and R2 k-mers
 - paired full-query alignment across both ends
 - breakpoint classification (`LEFT_BREAK`, `MIDDLE_BREAK`, `RIGHT_BREAK`)

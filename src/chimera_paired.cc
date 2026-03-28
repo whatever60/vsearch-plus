@@ -1317,7 +1317,11 @@ auto chimera_thread_core_paired(chimera_info_s_paired *ci) -> uint64_t {
       if (fp_chimeras_right_paired != nullptr) {
         fasta_print_general(fp_chimeras_right_paired, nullptr,
                             ci->query_seq_r2.data(), ci->query_len_r2,
-                            ci->query_head.data(), ci->query_head_len,
+                            records_paired[static_cast<std::size_t>(current_seqno)]
+                                .header_r2.c_str(),
+                            static_cast<int>(records_paired[static_cast<std::size_t>(
+                                                 current_seqno)]
+                                                 .header_r2.size()),
                             static_cast<unsigned int>(ci->query_size),
                             chimera_count_paired, -1.0, -1, -1,
                             opt_fasta_score ? "uchime_denovo" : nullptr,
@@ -1365,7 +1369,11 @@ auto chimera_thread_core_paired(chimera_info_s_paired *ci) -> uint64_t {
       if (fp_nonchimeras_right_paired != nullptr) {
         fasta_print_general(fp_nonchimeras_right_paired, nullptr,
                             ci->query_seq_r2.data(), ci->query_len_r2,
-                            ci->query_head.data(), ci->query_head_len,
+                            records_paired[static_cast<std::size_t>(current_seqno)]
+                                .header_r2.c_str(),
+                            static_cast<int>(records_paired[static_cast<std::size_t>(
+                                                 current_seqno)]
+                                                 .header_r2.size()),
                             static_cast<unsigned int>(ci->query_size),
                             nonchimera_count_paired, -1.0, -1, -1,
                             opt_fasta_score ? "uchime_denovo" : nullptr,
@@ -1491,20 +1499,20 @@ auto uchime3_denovo_paired(struct Parameters const &parameters) -> void {
   target_seqnos_r1_paired.clear();
   target_seqnos_r2_paired.clear();
 
-  auto append_record = [&](std::string const &left_header, int64_t left_abundance,
+  auto append_record = [&](std::string const &left_header,
+                           std::string const &right_header,
+                           int64_t left_abundance,
                            std::string const &left_sequence,
                            std::string const &right_sequence) -> void {
+    if (paired_header_key_paired(left_header) !=
+        paired_header_key_paired(right_header)) {
+      auto const message = std::string{"Paired FASTX headers differ ("} +
+                           left_header + " vs " + right_header + ")";
+      fatal(message.c_str());
+    }
     record_paired_s record;
     record.header = left_header;
-    auto const split = record.header.find_first_of(" \t");
-    if (split != std::string::npos) {
-      record.header.resize(split);
-    }
-    if ((record.header.size() > 2U) and
-        (record.header[record.header.size() - 2U] == '/') and
-        ((record.header.back() == '1') or (record.header.back() == '2'))) {
-      record.header.resize(record.header.size() - 2U);
-    }
+    record.header_r2 = right_header;
     record.qsequence_r1 = left_sequence;
     record.qsequence_r2 = right_sequence;
 
@@ -1555,7 +1563,8 @@ auto uchime3_denovo_paired(struct Parameters const &parameters) -> void {
               parameters.opt_uchime3_denovo);
       }
 
-      append_record(left_header, left_abundance, left_sequence,
+      append_record(left_header, std::string{fastx_get_header(fastx_h)},
+                    left_abundance, left_sequence,
                     std::string{fastx_get_sequence(fastx_h),
                                 static_cast<std::size_t>(
                                     fastx_get_sequence_length(fastx_h))});
@@ -1581,7 +1590,9 @@ auto uchime3_denovo_paired(struct Parameters const &parameters) -> void {
       }
 
       append_record(
-          std::string{fastx_get_header(left_h)}, fastx_get_abundance(left_h),
+          std::string{fastx_get_header(left_h)},
+          std::string{fastx_get_header(right_h)},
+          fastx_get_abundance(left_h),
           std::string{fastx_get_sequence(left_h),
                       static_cast<std::size_t>(fastx_get_sequence_length(left_h))},
           std::string{fastx_get_sequence(right_h),
@@ -1625,8 +1636,9 @@ auto uchime3_denovo_paired(struct Parameters const &parameters) -> void {
     db_add(false, record.header.c_str(), record.qsequence_r1.c_str(), nullptr,
            record.header.size(), record.qsequence_r1.size(), record.abundance);
     auto const right_seqno = static_cast<unsigned int>(db_getsequencecount());
-    db_add(false, record.header.c_str(), record.qsequence_r2.c_str(), nullptr,
-           record.header.size(), record.qsequence_r2.size(), record.abundance);
+    db_add(false, record.header_r2.c_str(), record.qsequence_r2.c_str(),
+           nullptr, record.header_r2.size(), record.qsequence_r2.size(),
+           record.abundance);
     target_seqnos_r1_paired.push_back(left_seqno);
     target_seqnos_r2_paired.push_back(right_seqno);
     longest_end_paired = std::max(

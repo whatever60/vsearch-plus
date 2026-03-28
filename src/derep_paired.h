@@ -20,6 +20,6 @@
 
 struct Parameters;
 
-auto fastx_uniques_paired(struct Parameters const &parameters) -> void;
+auto derep_paired(struct Parameters const &parameters) -> void;
 
 #endif

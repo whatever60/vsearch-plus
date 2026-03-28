@@ -45,10 +45,10 @@ command dispatch
   execute-command chain
     -> main command switch in `vsearch.cc`
       -> if paired input is present:
-         -> fastx_uniques_paired(parameters)
+         -> derep_paired(parameters)
 
 paired native path
-  fastx_uniques_paired(...)
+  derep_paired(...)
     -> paired input mode validation
        -> split paired input (`R1 R2`)
        -> or `--interleaved`

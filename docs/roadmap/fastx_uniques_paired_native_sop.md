@@ -11,10 +11,11 @@ It is based on:
 
 ## Current Status
 
-- Paired `--fastx_uniques` now routes to `fastx_uniques_paired()` in `src/derep_paired.cc`.
+- Paired `--fastx_uniques` now routes to `derep_paired()` in `src/derep_paired.cc`.
 - Single-end `--fastx_uniques` still routes to stock `derep(...)` in `src/derep.cc`.
 - The new paired public surface lives in `src/derep_paired.h`.
 - `src/tav_extension.cc` is no longer on the paired `fastx_uniques` CLI path and is no longer part of the build.
+- `src/derep_paired.cc` now presents a single stock-shaped paired entrypoint, `derep_paired(...)`; the temporary helper lambdas were refolded into that function.
 - Native paired smoke tests passed for:
   - split input (`R1 R2`)
   - interleaved input (`--interleaved`)
@@ -72,7 +73,7 @@ Do not move this port into `src/unique.cc`, because `unique.cc` is not the stock
 Main mapping:
 
 - stock `derep(...)`
-- paired `fastx_uniques_paired(...)`
+- paired `derep_paired(...)`
 
 For this command the paired wrapper can stay narrow, because the stock command owner is already a single top-level routine rather than a large thread/search engine.
 
@@ -112,9 +113,9 @@ Completion criteria for this command:
 ## Concrete Implementation Checklist
 
 1. Document the stock and paired callstacks in `docs/callstacks/fastx_uniques.txt`.
-2. Create `src/derep_paired.h` and declare `fastx_uniques_paired(...)` there.
+2. Create `src/derep_paired.h` and declare `derep_paired(...)` there.
 3. Create `src/derep_paired.cc` beside `src/derep.cc`.
-4. Route paired `--fastx_uniques` input in `src/vsearch.cc` to `fastx_uniques_paired(...)`.
+4. Route paired `--fastx_uniques` input in `src/vsearch.cc` to `derep_paired(...)`.
 5. Keep single-end routing on stock `derep(...)` unchanged.
 6. Wire `src/derep_paired.cc` and `src/derep_paired.h` into the build.
 7. Remove `src/tav_extension.cc` from the build.

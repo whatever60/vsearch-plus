@@ -6453,7 +6453,7 @@ auto main(int argc, char **argv) -> int {
     auto const paired_fastx_uniques_input =
         parameters.opt_interleaved or (parameters.opt_reverse != nullptr);
     if (paired_fastx_uniques_input) {
-      fastx_uniques_paired(parameters);
+      derep_paired(parameters);
     } else {
       derep(parameters, parameters.opt_fastx_uniques, false);
     }

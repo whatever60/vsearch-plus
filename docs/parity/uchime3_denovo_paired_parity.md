@@ -62,7 +62,7 @@ Extension mechanism: paired mode is an explicit alternate execution path, not a 
 
 Stock implementation: `chimera()` reads the denoised FASTA from `--uchime3_denovo`, optionally applies dust/hardmask (`opt_qmask` path), and then calls `db_sortbyabundance()`. Query processing order is abundance descending.
 
-Paired native implementation: `uchime3_denovo_paired()` loads paired FASTX input directly (split positional `R1/R2` or interleaved via `--interleaved`). The loader enforces synchronized record counts, applies the same qmask/hardmask operations to both ends, normalizes paired headers across split/interleaved input, and then sorts records by:
+Paired native implementation: `uchime3_denovo_paired()` loads paired FASTX input directly (split positional `R1/R2` or interleaved via `--interleaved`). The loader enforces synchronized record counts, applies the same qmask/hardmask operations to both ends, preserves separate R1 and R2 headers, requires the same first whitespace-delimited token on both ends, and then sorts records by:
 1. abundance descending
 2. header ascending
 3. left sequence ascending

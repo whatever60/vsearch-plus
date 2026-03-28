@@ -30,7 +30,7 @@
 #include <unordered_map>
 #include <vector>
 
-auto fastx_uniques_paired(struct Parameters const &parameters) -> void {
+auto derep_paired(struct Parameters const &parameters) -> void {
   if (parameters.opt_interleaved and (parameters.opt_reverse != nullptr)) {
     fatal("Paired fastx_uniques input must be either split (R1 + R2 "
           "positional input) or --interleaved, not both");
@@ -46,53 +46,10 @@ auto fastx_uniques_paired(struct Parameters const &parameters) -> void {
           "--fastaout/--fastaout_rev");
   }
 
-  auto get_anchor_len_paired = [](int64_t const len1, int64_t const len2)
-      -> int64_t {
-    auto const min_len = std::min(len1, len2);
-    if (opt_fastq_trunclen > 0) {
-      return std::min<int64_t>(min_len, opt_fastq_trunclen);
-    }
-    return min_len;
-  };
-
   std::unordered_map<std::string, std::size_t> pair_to_index;
   std::vector<record_paired_s> records;
   int64_t read_ordinal = 0;
   int64_t skipped_short = 0;
-
-  auto append_unique_record = [&](std::string const &header,
-                                  int64_t const abundance,
-                                  std::string const &left_sequence,
-                                  std::string const &right_sequence) -> void {
-    auto const anchor_len = get_anchor_len_paired(
-        static_cast<int64_t>(left_sequence.size()),
-        static_cast<int64_t>(right_sequence.size()));
-    if ((anchor_len <= 0) or
-        (static_cast<int64_t>(left_sequence.size()) < anchor_len) or
-        (static_cast<int64_t>(right_sequence.size()) < anchor_len)) {
-      ++skipped_short;
-      return;
-    }
-
-    auto const left_anchor =
-        left_sequence.substr(0U, static_cast<std::size_t>(anchor_len));
-    auto const right_anchor =
-        right_sequence.substr(0U, static_cast<std::size_t>(anchor_len));
-    auto const key = left_anchor + '\t' + right_anchor;
-    auto const pos = pair_to_index.find(key);
-    if (pos == pair_to_index.end()) {
-      record_paired_s record;
-      record.header = header;
-      record.qsequence_r1 = left_anchor;
-      record.qsequence_r2 = right_anchor;
-      record.abundance = abundance;
-      record.first_seen = read_ordinal;
-      pair_to_index.emplace(key, records.size());
-      records.push_back(std::move(record));
-    } else {
-      records[pos->second].abundance += abundance;
-    }
-  };
 
   if (parameters.opt_interleaved) {
     auto *fastx_h = fastx_open(parameters.opt_fastx_uniques);
@@ -117,11 +74,48 @@ auto fastx_uniques_paired(struct Parameters const &parameters) -> void {
               parameters.opt_fastx_uniques);
       }
 
-      append_unique_record(
-          left_header, left_abundance, left_sequence,
+      auto const right_header = std::string{fastx_get_header(fastx_h)};
+      if (paired_header_key_paired(left_header) !=
+          paired_header_key_paired(right_header)) {
+        auto const message = std::string{"Paired FASTX headers differ ("} +
+                             left_header + " vs " + right_header + ")";
+        fatal(message.c_str());
+      }
+      auto const right_sequence =
           std::string{fastx_get_sequence(fastx_h),
                       static_cast<std::size_t>(
-                          fastx_get_sequence_length(fastx_h))});
+                          fastx_get_sequence_length(fastx_h))};
+      auto anchor_len = std::min<int64_t>(
+          static_cast<int64_t>(left_sequence.size()),
+          static_cast<int64_t>(right_sequence.size()));
+      if (opt_fastq_trunclen > 0) {
+        anchor_len = std::min<int64_t>(anchor_len, opt_fastq_trunclen);
+      }
+      if ((anchor_len <= 0) or
+          (static_cast<int64_t>(left_sequence.size()) < anchor_len) or
+          (static_cast<int64_t>(right_sequence.size()) < anchor_len)) {
+        ++skipped_short;
+      } else {
+        auto const left_anchor =
+            left_sequence.substr(0U, static_cast<std::size_t>(anchor_len));
+        auto const right_anchor =
+            right_sequence.substr(0U, static_cast<std::size_t>(anchor_len));
+        auto const key = left_anchor + '\t' + right_anchor;
+        auto const pos = pair_to_index.find(key);
+        if (pos == pair_to_index.end()) {
+          record_paired_s record;
+          record.header = left_header;
+          record.header_r2 = right_header;
+          record.qsequence_r1 = left_anchor;
+          record.qsequence_r2 = right_anchor;
+          record.abundance = left_abundance;
+          record.first_seen = read_ordinal;
+          pair_to_index.emplace(key, records.size());
+          records.push_back(std::move(record));
+        } else {
+          records[pos->second].abundance += left_abundance;
+        }
+      }
       ++read_ordinal;
     }
 
@@ -144,14 +138,54 @@ auto fastx_uniques_paired(struct Parameters const &parameters) -> void {
         fatal("More forward records than reverse records in paired FASTX input");
       }
 
-      append_unique_record(
-          std::string{fastx_get_header(left_h)}, fastx_get_abundance(left_h),
+      auto const left_header = std::string{fastx_get_header(left_h)};
+      auto const right_header = std::string{fastx_get_header(right_h)};
+      if (paired_header_key_paired(left_header) !=
+          paired_header_key_paired(right_header)) {
+        auto const message = std::string{"Paired FASTX headers differ ("} +
+                             left_header + " vs " + right_header + ")";
+        fatal(message.c_str());
+      }
+      auto const left_abundance = fastx_get_abundance(left_h);
+      auto const left_sequence =
           std::string{fastx_get_sequence(left_h),
                       static_cast<std::size_t>(
-                          fastx_get_sequence_length(left_h))},
+                          fastx_get_sequence_length(left_h))};
+      auto const right_sequence =
           std::string{fastx_get_sequence(right_h),
                       static_cast<std::size_t>(
-                          fastx_get_sequence_length(right_h))});
+                          fastx_get_sequence_length(right_h))};
+      auto anchor_len = std::min<int64_t>(
+          static_cast<int64_t>(left_sequence.size()),
+          static_cast<int64_t>(right_sequence.size()));
+      if (opt_fastq_trunclen > 0) {
+        anchor_len = std::min<int64_t>(anchor_len, opt_fastq_trunclen);
+      }
+      if ((anchor_len <= 0) or
+          (static_cast<int64_t>(left_sequence.size()) < anchor_len) or
+          (static_cast<int64_t>(right_sequence.size()) < anchor_len)) {
+        ++skipped_short;
+      } else {
+        auto const left_anchor =
+            left_sequence.substr(0U, static_cast<std::size_t>(anchor_len));
+        auto const right_anchor =
+            right_sequence.substr(0U, static_cast<std::size_t>(anchor_len));
+        auto const key = left_anchor + '\t' + right_anchor;
+        auto const pos = pair_to_index.find(key);
+        if (pos == pair_to_index.end()) {
+          record_paired_s record;
+          record.header = left_header;
+          record.header_r2 = right_header;
+          record.qsequence_r1 = left_anchor;
+          record.qsequence_r2 = right_anchor;
+          record.abundance = left_abundance;
+          record.first_seen = read_ordinal;
+          pair_to_index.emplace(key, records.size());
+          records.push_back(std::move(record));
+        } else {
+          records[pos->second].abundance += left_abundance;
+        }
+      }
       ++read_ordinal;
     }
 
@@ -224,8 +258,8 @@ auto fastx_uniques_paired(struct Parameters const &parameters) -> void {
     if (fp_right != nullptr) {
       fasta_print_general(fp_right, nullptr, record.qsequence_r2.c_str(),
                           static_cast<int>(record.qsequence_r2.size()),
-                          record.header.c_str(),
-                          static_cast<int>(record.header.size()),
+                          record.header_r2.c_str(),
+                          static_cast<int>(record.header_r2.size()),
                           static_cast<unsigned int>(record.abundance), ordinal,
                           -1.0, -1, -1, nullptr, 0.0);
     }

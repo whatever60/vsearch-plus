@@ -56,11 +56,13 @@ It is based on:
   - exact output agreement for `uc`, `otutabout`, `userout`, `blast6out`, `matched/match2`, `notmatched/notmatched2`, `dbmatched/dbmatched2`, `dbnotmatched/dbnotmatched2`
   - `alnout` body agreement between `--threads 1` and `--threads 2` (command header line differs because output filenames and thread count differ)
   - interleaved-input smoke test matching the split-input OTU table
-- Two convenience helpers were refolded to keep the wrapper closer to stock shape:
-  - `trim_header_to_id_paired` was folded into `trim_pair_suffix_paired`
+- One convenience helper was refolded to keep the wrapper closer to stock shape:
   - `mask_sequence_paired` was folded into the DB-load block inside `search_prep_paired()`
-- The remaining non-stock helper functions in `src/search_paired.cc` are paired-only command-surface helpers, not search-core helpers:
-  - `trim_pair_suffix_paired`
+- Paired loaders now preserve separate R1 and R2 headers while enforcing that the first whitespace-delimited token matches between ends.
+  - this check is independent of `--notrunclabels`
+  - there is no extra `/1` or `/2` normalization layer
+- The remaining non-stock helper functions are narrow paired-only helpers:
+  - `paired_header_key_paired`
   - `get_anchor_len_paired`
   - `is_catalog_file_paired`
   - `write_fasta_record_paired`
@@ -346,7 +348,7 @@ For the current paired contract, `cmd_usearch_global()` still rejects non-plus s
 
 - paired DB input opening/loading
 - paired DB masking
-- paired DB/header normalization
+- paired DB header consistency checks using the first whitespace-delimited token
 - paired DBAccel/index preparation
 - output file opening that matches stock `search_prep`
 

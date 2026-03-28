@@ -42,19 +42,6 @@
 
 namespace {
 
-auto trim_pair_suffix_paired(std::string const &header) -> std::string {
-  auto id = header;
-  auto const split = id.find_first_of(" \t");
-  if (split != std::string::npos) {
-    id.resize(split);
-  }
-  if ((id.size() > 2U) and (id[id.size() - 2U] == '/') and
-      ((id.back() == '1') or (id.back() == '2'))) {
-    id.resize(id.size() - 2U);
-  }
-  return id;
-}
-
 auto get_anchor_len_paired(int64_t const len1, int64_t const len2) -> int64_t {
   auto const min_len = std::min(len1, len2);
   if (opt_fastq_trunclen > 0) {
@@ -90,15 +77,17 @@ auto write_fasta_record_paired(FILE *fp, char const *header,
 }
 
 auto write_query_pair_split_paired(FILE *fp_left, FILE *fp_right,
-                                   char const *header, char const *qsequence_r1,
+                                   char const *header_r1,
+                                   char const *header_r2,
+                                   char const *qsequence_r1,
                                    int const qseqlen_r1,
                                    char const *qsequence_r2,
                                    int const qseqlen_r2,
                                    int64_t const abundance,
                                    int &ordinal) -> void {
-  write_fasta_record_paired(fp_left, header, qsequence_r1, qseqlen_r1,
+  write_fasta_record_paired(fp_left, header_r1, qsequence_r1, qseqlen_r1,
                             abundance, ordinal);
-  write_fasta_record_paired(fp_right, header, qsequence_r2, qseqlen_r2,
+  write_fasta_record_paired(fp_right, header_r2, qsequence_r2, qseqlen_r2,
                             abundance, ordinal);
 }
 
@@ -107,6 +96,7 @@ auto write_db_pair_split_paired(FILE *fp_left, FILE *fp_right,
                                 int64_t const abundance, int &ordinal)
     -> void {
   write_query_pair_split_paired(fp_left, fp_right, record.header.c_str(),
+                                record.header_r2.c_str(),
                                 record.qsequence_r1.c_str(),
                                 static_cast<int>(record.qsequence_r1.size()),
                                 record.qsequence_r2.c_str(),
@@ -159,11 +149,14 @@ static int count_notmatched = 0;
 auto search_output_results_paired(std::vector<hit_paired_s> const &hits,
                                   char const *query_head,
                                   int const query_head_len,
+                                  char const *query_head_r2,
+                                  int const query_head_len_r2,
                                   int const qseqlen_r1,
                                   char const *qsequence_r1,
                                   int const qseqlen_r2,
                                   char const *qsequence_r2,
                                   int64_t const qsize) -> void {
+  (void)query_head_len_r2;
   xpthread_mutex_lock(&mutex_output);
 
   auto const toreport =
@@ -342,6 +335,7 @@ auto search_output_results_paired(std::vector<hit_paired_s> const &hits,
     ++count_matched;
     if (opt_matched != nullptr) {
       write_query_pair_split_paired(fp_matched, fp_matched2, query_head,
+                                    query_head_r2,
                                     qsequence_r1, qseqlen_r1, qsequence_r2,
                                     qseqlen_r2, qsize, count_matched);
     }
@@ -349,6 +343,7 @@ auto search_output_results_paired(std::vector<hit_paired_s> const &hits,
     ++count_notmatched;
     if (opt_notmatched != nullptr) {
       write_query_pair_split_paired(fp_notmatched, fp_notmatched2, query_head,
+                                    query_head_r2,
                                     qsequence_r1, qseqlen_r1, qsequence_r2,
                                     qseqlen_r2, qsize, count_notmatched);
     }
@@ -385,6 +380,8 @@ auto search_query_paired(int64_t const t) -> int {
 
   search_output_results_paired(hits, si_plus[t].query_head,
                                si_plus[t].query_head_len,
+                               si_plus[t].query_head_r2,
+                               si_plus[t].query_head_len_r2,
                                si_plus[t].qseqlen_r1, si_plus[t].qsequence_r1,
                                si_plus[t].qseqlen_r2, si_plus[t].qsequence_r2,
                                si_plus[t].qsize);
@@ -413,6 +410,7 @@ auto search_thread_run_paired(int64_t const t) -> void {
       std::string qsequence_r1{fastx_get_sequence(query_fastx_h_left),
                                static_cast<std::size_t>(qseqlen_r1)};
 
+      std::string query_head_r2;
       std::string qsequence_r2;
       int qseqlen_r2 = 0;
       if (query_fastx_h_right == nullptr) {
@@ -422,6 +420,7 @@ auto search_thread_run_paired(int64_t const t) -> void {
                 "expected left/right entries",
                 query_filename_left);
         }
+        query_head_r2 = fastx_get_header(query_fastx_h_left);
         qseqlen_r2 = fastx_get_sequence_length(query_fastx_h_left);
         qsequence_r2.assign(fastx_get_sequence(query_fastx_h_left),
                             static_cast<std::size_t>(qseqlen_r2));
@@ -430,9 +429,16 @@ auto search_thread_run_paired(int64_t const t) -> void {
                            chrmap_no_change_vector.data())) {
           fatal("More forward queries than reverse queries");
         }
+        query_head_r2 = fastx_get_header(query_fastx_h_right);
         qseqlen_r2 = fastx_get_sequence_length(query_fastx_h_right);
         qsequence_r2.assign(fastx_get_sequence(query_fastx_h_right),
                             static_cast<std::size_t>(qseqlen_r2));
+      }
+      if (paired_header_key_paired(query_head) !=
+          paired_header_key_paired(query_head_r2)) {
+        auto const message = std::string{"Paired query headers differ ("} +
+                             query_head + " vs " + query_head_r2 + ")";
+        fatal(message.c_str());
       }
 
       auto const anchor_len =
@@ -442,6 +448,7 @@ auto search_thread_run_paired(int64_t const t) -> void {
       for (int s = 0; s < opt_strand; s++) {
         auto *si = (s != 0) ? si_minus + t : si_plus + t;
         si->query_head_len = static_cast<int>(query_head.size());
+        si->query_head_len_r2 = static_cast<int>(query_head_r2.size());
         si->qseqlen_r1 = anchor_len;
         si->qseqlen_r2 = anchor_len;
         si->query_no = query_no;
@@ -452,6 +459,12 @@ auto search_thread_run_paired(int64_t const t) -> void {
           si->query_head_alloc = si->query_head_len + 2001;
           si->query_head = static_cast<char *>(
               xrealloc(si->query_head, static_cast<std::size_t>(si->query_head_alloc)));
+        }
+        if (si->query_head_len_r2 + 1 > si->query_head_alloc_r2) {
+          si->query_head_alloc_r2 = si->query_head_len_r2 + 2001;
+          si->query_head_r2 = static_cast<char *>(
+              xrealloc(si->query_head_r2,
+                       static_cast<std::size_t>(si->query_head_alloc_r2)));
         }
 
         if (anchor_len + 1 > si->seq_alloc) {
@@ -464,6 +477,7 @@ auto search_thread_run_paired(int64_t const t) -> void {
       }
 
       std::strcpy(si_plus[t].query_head, query_head.c_str());
+      std::strcpy(si_plus[t].query_head_r2, query_head_r2.c_str());
       std::memcpy(si_plus[t].qsequence_r1, qsequence_r1.data(),
                   static_cast<std::size_t>(anchor_len));
       si_plus[t].qsequence_r1[anchor_len] = '\0';
@@ -477,6 +491,7 @@ auto search_thread_run_paired(int64_t const t) -> void {
 
       if (opt_strand > 1) {
         std::strcpy(si_minus[t].query_head, si_plus[t].query_head);
+        std::strcpy(si_minus[t].query_head_r2, si_plus[t].query_head_r2);
         reverse_complement(si_minus[t].qsequence_r1, si_plus[t].qsequence_r1,
                            si_plus[t].qseqlen_r1);
         reverse_complement(si_minus[t].qsequence_r2, si_plus[t].qsequence_r2,
@@ -512,6 +527,8 @@ auto search_thread_init_paired(searchinfo_s_paired *si) -> void {
   si->qsize = 1;
   si->query_head_alloc = 0;
   si->query_head = nullptr;
+  si->query_head_alloc_r2 = 0;
+  si->query_head_r2 = nullptr;
   si->seq_alloc = 0;
   si->qsequence_r1 = nullptr;
   si->qsequence_r2 = nullptr;
@@ -545,6 +562,9 @@ auto search_thread_exit_paired(searchinfo_s_paired *si) -> void {
   xfree(si->kmers);
   if (si->query_head != nullptr) {
     xfree(si->query_head);
+  }
+  if (si->query_head_r2 != nullptr) {
+    xfree(si->query_head_r2);
   }
   if (si->qsequence_r1 != nullptr) {
     xfree(si->qsequence_r1);
@@ -705,14 +725,16 @@ auto search_prep_paired(char *cmdline, char *progheader) -> void {
       return;
     }
 
-    record_paired_s record;
-    record.header = trim_pair_suffix_paired(left_header);
-    auto const right_base = trim_pair_suffix_paired(right_header);
-    if ((right_base != record.header) and (not opt_quiet)) {
-      std::fprintf(stderr,
-                   "Warning: paired database headers differ (%s vs %s); using left header base\n",
-                   left_header.c_str(), right_header.c_str());
+    if (paired_header_key_paired(left_header) !=
+        paired_header_key_paired(right_header)) {
+      auto const message = std::string{"Paired database headers differ ("} +
+                           left_header + " vs " + right_header + ")";
+      fatal(message.c_str());
     }
+
+    record_paired_s record;
+    record.header = left_header;
+    record.header_r2 = right_header;
     if ((right_abundance != left_abundance) and (not opt_quiet)) {
       std::fprintf(stderr,
                    "Warning: paired database abundances differ (%" PRId64
@@ -839,8 +861,9 @@ auto search_prep_paired(char *cmdline, char *progheader) -> void {
     db_add(false, record.header.c_str(), record.qsequence_r1.c_str(), nullptr,
            record.header.size(), record.qsequence_r1.size(), record.abundance);
     auto const right_seqno = static_cast<unsigned int>(db_getsequencecount());
-    db_add(false, record.header.c_str(), record.qsequence_r2.c_str(), nullptr,
-           record.header.size(), record.qsequence_r2.size(), record.abundance);
+    db_add(false, record.header_r2.c_str(), record.qsequence_r2.c_str(),
+           nullptr, record.header_r2.size(), record.qsequence_r2.size(),
+           record.abundance);
     target_seqnos_r1.push_back(left_seqno);
     target_seqnos_r2.push_back(right_seqno);
   }

@@ -44,7 +44,7 @@ Low-level relationship in current code:
 - `fastx_uniques` input call stack:
   ```text
   main command switch in vsearch.cc
-    -> fastx_uniques_paired(...)
+    -> derep_paired(...)
        -> paired FASTX read loop
        -> anchor truncation + pair-key derep
   ```

@@ -67,16 +67,18 @@ Catalog TSV input is rejected. Each DB pair is converted to one `TavRecord`:
 - anchor length `anchor_len = min(left_len, right_len)` (or bounded by `--fastq_trunclen` via `get_anchor_len`)
 - min/max length filtering with `--filter any|both`
 - DB masking on both ends (`opt_dbmask`)
-- header base normalized by removing trailing `/1` or `/2`
+- separate R1 and R2 headers preserved, while the first whitespace-delimited token must match between ends
 - abundance taken from left record (warning on mismatch)
 
 Extension mechanism: one paired target record replaces one single-sequence target.
 
-### Step 3: Query ingestion and paired normalization
+### Step 3: Query ingestion and paired synchronization
 
 Stock implementation: each query sequence is read once (or twice with reverse strand search when enabled), optionally query-masked, then searched.
 
 Paired extension implementation: split queries (`R1`/`R2`) are read synchronously, or interleaved queries are consumed as `(R1,R2,R1,R2,...)`. For each pair:
+- the first whitespace-delimited token of the R1 and R2 headers must match
+- this header-pair check is independent of `--notrunclabels`
 - right read is kept in native R2 orientation
 - both ends are truncated to `anchor_len`
 - query masking (`opt_qmask`) is applied on both ends

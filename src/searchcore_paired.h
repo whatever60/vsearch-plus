@@ -31,6 +31,7 @@ class LinearMemoryAligner;
 
 struct record_paired_s {
   std::string header;
+  std::string header_r2;
   std::string qsequence_r1;
   std::string qsequence_r2;
   int64_t abundance = 0;
@@ -87,6 +88,9 @@ struct searchinfo_s_paired {
   int query_head_len = 0;
   int query_head_alloc = 0;
   char *query_head = nullptr;
+  int query_head_len_r2 = 0;
+  int query_head_alloc_r2 = 0;
+  char *query_head_r2 = nullptr;
 
   int qseqlen_r1 = 0;
   int qseqlen_r2 = 0;
@@ -121,6 +125,8 @@ struct searchinfo_s_paired {
 };
 
 auto search_topscores_paired(searchinfo_s_paired *searchinfo) -> void;
+
+auto paired_header_key_paired(std::string const &header) -> std::string;
 
 auto search_onequery_paired(searchinfo_s_paired *searchinfo, int seqmask)
     -> void;

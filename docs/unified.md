@@ -15,9 +15,19 @@
 **Paired extension logic**
 <!-- Logic/control flow that's specific to paired end extension. Write it like a diff on top of the stock logic. Like "Same as stock, but..." -->
 
+**Paired extension CLI**
+
+**Paired extension output**
+
 ## `vsearch --fastx_uniques`
 
 ### Shared logic
+
+#### Step 1
+
+**Paired extension logic**
+
+#### Step 2
 
 **Paired extension logic**
 
@@ -27,7 +37,6 @@
 
 ### Shared logic
 
-#### Step 1
 
 **Paired extension logic**
 
