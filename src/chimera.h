@@ -60,4 +60,19 @@
 
 constexpr auto maxparents = 20; /* max, could be fewer */
 
+#include <array>
+#include <vector>
+
+enum struct Status : unsigned char {
+  no_parents,
+  no_alignment,
+  low_score,
+  suspicious,
+  chimeric
+};
+
+auto select_best_two_parents_from_match_matrix(
+    std::vector<int> &match, int cand_count, int query_len, int window,
+    std::array<int, 2> &best_parent_cand) -> bool;
+
 auto chimera(struct Parameters const &parameters) -> void;

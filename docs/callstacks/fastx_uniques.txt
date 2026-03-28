@@ -1,0 +1,83 @@
+Stock `fastx_uniques` complete callstack
+
+command dispatch
+  execute-command chain
+    -> main command switch in `vsearch.cc`
+      -> if paired input is absent:
+         -> derep(parameters, parameters.opt_fastx_uniques, false)
+
+stock single-end derep path
+  derep(...)
+    -> show_rusage()
+    -> fastx_open(input_filename)
+    -> input validation
+       -> fastx_is_empty / fastx_is_fastq
+       -> output-surface validation
+    -> open requested outputs
+       -> fastaout / fastqout / uc / tabbedout
+    -> allocate derep hash table and optional extra-info arrays
+       -> nextseqtab / headertab / match_strand
+    -> progress_init("Dereplicating file ...")
+    -> while fastx_next(...)
+       -> length filters
+       -> normalize sequence with string_normalize(...)
+       -> optional reverse_complement(...) for strand-aware derep modes
+       -> hash lookup / collision resolution in derep table
+       -> optional reverse-strand hash lookup
+       -> update existing bucket or create new bucket
+       -> optional quality-score merge for FASTQ
+       -> progress_update(...)
+    -> progress_done()
+    -> fastx_close(input_handle)
+    -> qsort(hashtable, derep_compare_full)
+    -> count_selected(...)
+    -> write requested outputs
+       -> fasta_print_general(...) for FASTA output
+       -> fastq_print_general(...) for FASTQ output
+       -> UC `S/H/C` records
+       -> stock tabbedout rows
+    -> free derep buckets
+    -> show_rusage()
+
+Native paired `fastx_uniques` complete callstack
+
+command dispatch
+  execute-command chain
+    -> main command switch in `vsearch.cc`
+      -> if paired input is present:
+         -> fastx_uniques_paired(parameters)
+
+paired native path
+  fastx_uniques_paired(...)
+    -> paired input mode validation
+       -> split paired input (`R1 R2`)
+       -> or `--interleaved`
+    -> output validation
+       -> requires `--tabbedout` and/or `--fastaout` / `--fastaout_rev`
+    -> initialize paired key map and `record_paired_s` list
+    -> read paired input
+       -> split mode:
+          -> fastx_open(R1) / fastx_open(R2)
+          -> lockstep `fastx_next(...)`
+       -> interleaved mode:
+          -> fastx_open(interleaved)
+          -> consume `(R1,R2)` pairs via `fastx_next(...)`
+    -> per pair
+       -> compute shared anchor length = `min(len(R1), len(R2))`, bounded by `--fastq_trunclen`
+       -> build exact paired key = `left_anchor + '\t' + right_anchor`
+       -> aggregate abundance into existing paired record or create new one
+    -> sort paired records
+       -> abundance descending
+       -> representative header ascending
+       -> first-seen ascending
+    -> optional paired catalog write (`--tabbedout`)
+    -> optional paired FASTA writes
+       -> `fasta_print_general(...)` for R1 into `--fastaout`
+       -> `fasta_print_general(...)` for R2 into `--fastaout_rev`
+    -> stderr summary
+
+Ownership notes
+
+- Stock owner: `src/derep.cc`
+- Native paired owner: `src/derep_paired.cc`
+- Legacy `tav_fastx_uniques(...)` is no longer on the CLI path and is no longer part of the build.

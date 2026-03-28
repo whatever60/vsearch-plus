@@ -1,0 +1,104 @@
+Stock `uchime3_denovo` complete callstack
+
+command dispatch
+  execute-command chain
+    -> cmd_chimera(parameters)
+      -> chimera(parameters)
+
+setup phase
+  -> open_chimera_file(...) for enabled outputs
+  -> override denovo options
+     -> opt_maxaccepts = few
+     -> opt_maxrejects = rejects
+     -> opt_id = chimera_id
+     -> opt_self = 1
+     -> opt_selfid = 1
+     -> opt_threads = 1
+     -> opt_maxsizeratio = 1 / opt_abskew
+  -> tophits = opt_maxaccepts + opt_maxrejects
+  -> prepare pthread / chimera_info arrays
+  -> xpthread_mutex_init(&mutex_input)
+  -> xpthread_mutex_init(&mutex_output)
+  -> db_read(parameters.opt_uchime3_denovo, 0)
+  -> optional dust_all() / hardmask_all()
+  -> db_sortbyabundance()
+  -> dbindex_prepare(1, parameters.opt_qmask)
+  -> progress_total = db_getnucleotidecount()
+  -> optional log header writes
+  -> progress_init("Detecting chimeras", progress_total)
+  -> chimera_threads_run()
+
+thread worker orchestration
+  -> xpthread_attr_init/setdetachstate
+  -> for each worker t:
+     -> xpthread_create(..., chimera_thread_worker, t)
+  -> each worker executes:
+     -> chimera_thread_worker(void *)
+        -> chimera_thread_core(ci)
+           -> chimera_thread_init(ci)
+              -> for each part:
+                 -> query_init(&ci->si[i])
+                    -> hits_v.resize(tophits), hits = hits_v.data()
+                    -> kmers_v.resize(db_getsequencecount())
+                    -> unique_init()
+                    -> search16_init(...)
+                    -> minheap_init(tophits)
+              -> ci->s = search16_init(...)
+           -> loop over denovo queries in abundance order
+              -> lock mutex_input
+              -> load query from db_getheader/db_getsequence/db_getabundance(seqno)
+              -> realloc_arrays(ci)
+              -> unlock mutex_input
+              -> partition_query(ci)
+              -> for each part:
+                 -> search_onequery(&ci->si[i], opt_qmask)
+                 -> search_joinhits(&ci->si[i], nullptr, hits)
+                 -> retain accepted hits in allhits_list
+                 -> free weak-hit alignments
+              -> deduplicate allhits_list into cand_list
+              -> free allhits_list alignments
+              -> search16_qprep(ci->s, full_query)
+              -> search16(ci->s, cand_count, cand_list, ... , ci->nwcigar.data())
+              -> overflow fallback via LinearMemoryAligner
+              -> find_best_parents(ci)
+                 -> reset_matches(ci)
+                 -> find_matches(ci)
+                 -> select_best_two_parents_from_match_matrix(...)
+              -> eval_parents(ci)
+                 -> fill_max_alignment_length(ci)
+                 -> fill_alignment_parents(ci)
+                 -> build query alignment string
+                 -> diff/vote/model scan
+                 -> compute best_h and final uchime3 decision
+                 -> optional uchimealns / uchimeout writes
+              -> lock mutex_output
+              -> update chimera/nonchimera counters and abundances
+              -> write chimeras/nonchimeras outputs
+              -> if status < suspicious:
+                 -> dbindex_addsequence(seqno, opt_qmask)
+              -> free ci->nwcigar[i]
+              -> progress_update(...)
+              -> ++seqno
+              -> unlock mutex_output
+           -> chimera_thread_exit(ci)
+              -> search16_exit(ci->s)
+              -> for each part:
+                 -> query_exit(&ci->si[i])
+                    -> search16_exit()
+                    -> unique_exit()
+                    -> minheap_exit()
+
+teardown phase
+  -> progress_done()
+  -> print/log chimera summaries
+  -> dbindex_free()
+  -> db_free()
+  -> xpthread_mutex_destroy(&mutex_output)
+  -> xpthread_mutex_destroy(&mutex_input)
+  -> close output files
+  -> show_rusage()
+
+Threading note
+
+- For denovo commands (`uchime_denovo`, `uchime2_denovo`, `uchime3_denovo`, `chimeras_denovo`), stock `chimera()` forces `opt_threads = 1`.
+- So `uchime3_denovo` always uses the threaded driver shape above, but with exactly one worker.

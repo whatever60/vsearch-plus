@@ -36,9 +36,6 @@
 
 namespace {
 
-auto paired_target_seqnos_r1 =
-    static_cast<std::vector<unsigned int> const *>(nullptr);
-
 auto make_hits_span_paired(searchinfo_s_paired const *search_info)
     -> Span<hit_paired_s> {
   assert(search_info != nullptr);
@@ -72,18 +69,21 @@ auto copy_over_hits_to_be_kept_paired(std::vector<hit_paired_s> &hits,
   }
 }
 
-auto free_rejected_alignments_paired(searchinfo_s_paired const *search_info)
+auto free_rejected_alignments_paired(searchinfo_s_paired *search_info)
     -> void {
   if (search_info == nullptr) {
     return;
   }
-  for (auto const &hit : make_hits_span_paired(search_info)) {
+  for (auto &hit : make_hits_span_paired(search_info)) {
     if (not(hit.accepted or hit.weak) and hit.aligned) {
-      /*
-        stock searchcore frees rejected CIGAR allocations here.
-        paired hit storage currently keeps alignment strings in std::string,
-        so there is no xfree-equivalent needed in this helper.
-      */
+      if (hit.r1.nwalignment != nullptr) {
+        xfree(hit.r1.nwalignment);
+        hit.r1.nwalignment = nullptr;
+      }
+      if (hit.r2.nwalignment != nullptr) {
+        xfree(hit.r2.nwalignment);
+        hit.r2.nwalignment = nullptr;
+      }
     }
   }
 }
@@ -157,11 +157,8 @@ inline auto hit_compare_bysize_typed_paired(hit_paired_s const *lhs,
     return 0;
   }
 
-  assert(paired_target_seqnos_r1 != nullptr);
-  auto const lhs_abundance = db_getabundance(
-      (*paired_target_seqnos_r1)[static_cast<std::size_t>(lhs->target)]);
-  auto const rhs_abundance = db_getabundance(
-      (*paired_target_seqnos_r1)[static_cast<std::size_t>(rhs->target)]);
+  auto const lhs_abundance = db_getabundance(lhs->target_seqno_r1);
+  auto const rhs_abundance = db_getabundance(rhs->target_seqno_r1);
   if (lhs_abundance > rhs_abundance) {
     return -1;
   }
@@ -338,7 +335,7 @@ auto search_acceptable_unaligned_paired(searchinfo_s_paired const &searchinfo,
        (seqcmp(searchinfo.qsequence_r2 + searchinfo.qseqlen_r2 - opt_idsuffix,
                dseq_r2 + dseqlen_r2 - opt_idsuffix, opt_idsuffix) == 0)) and
       /* self */
-      ((opt_self == 0) or (searchinfo.query_head != dlabel)) and
+      ((opt_self == 0) or (std::strcmp(searchinfo.query_head, dlabel) != 0)) and
       /* selfid */
       ((opt_selfid == 0) or (searchinfo.qseqlen_r1 != dseqlen_r1) or
        (searchinfo.qseqlen_r2 != dseqlen_r2) or
@@ -348,29 +345,34 @@ auto search_acceptable_unaligned_paired(searchinfo_s_paired const &searchinfo,
 
 auto search_acceptable_aligned_paired(searchinfo_s_paired const &searchinfo,
                                       hit_paired_s *hit) -> bool {
-  auto const query_len = searchinfo.qseqlen_r1 + searchinfo.qseqlen_r2;
   auto const target_index = static_cast<std::size_t>(hit->target);
   auto const target_seqno_r1 = (*searchinfo.target_seqnos_r1)[target_index];
   auto const target_seqno_r2 = (*searchinfo.target_seqnos_r2)[target_index];
-  auto const target_len = static_cast<int>(db_getsequencelen(target_seqno_r1) +
-                                           db_getsequencelen(target_seqno_r2));
 
   struct search_aligned_filter_input_s filter_input {};
-  filter_input.mismatches = hit->mismatches_total;
-  filter_input.nwgaps = hit->nwgaps_total;
-  filter_input.nwalignmentlength = hit->nwalignment_cols_total;
-  filter_input.internal_alignmentlength = hit->internal_alignment_cols_total;
-  filter_input.internal_gaps = hit->internal_gaps_total;
-  filter_input.internal_indels = hit->internal_indels_total;
-  filter_input.matches = hit->r1.matches + hit->r2.matches;
-  filter_input.query_len = query_len;
-  filter_input.target_len = target_len;
+  filter_input.mismatches = hit->mismatches;
+  filter_input.nwgaps = hit->nwgaps;
+  filter_input.nwalignmentlength = hit->nwalignmentlength;
+  filter_input.internal_alignmentlength = hit->internal_alignmentlength;
+  filter_input.internal_gaps = hit->internal_gaps;
+  filter_input.internal_indels = hit->internal_indels;
+  filter_input.matches = hit->matches;
+  filter_input.query_len = searchinfo.qseqlen_r1 + searchinfo.qseqlen_r2;
+  filter_input.target_len = static_cast<int>(db_getsequencelen(target_seqno_r1) +
+                                             db_getsequencelen(target_seqno_r2));
   filter_input.trim_left_total = hit->r1.trim_q_left + hit->r1.trim_t_left +
                                  hit->r2.trim_q_left + hit->r2.trim_t_left;
   filter_input.trim_right_total = hit->r1.trim_q_right + hit->r1.trim_t_right +
                                   hit->r2.trim_q_right + hit->r2.trim_t_right;
 
   auto const metrics = search_aligned_compute_identity_metrics(filter_input);
+  hit->shortest = metrics.shortest;
+  hit->longest = metrics.longest;
+  hit->id0 = metrics.id0;
+  hit->id1 = metrics.id1;
+  hit->id2 = metrics.id2;
+  hit->id3 = metrics.id3;
+  hit->id4 = metrics.id4;
   hit->id = metrics.id;
   hit->mid = metrics.mid;
 
@@ -382,17 +384,14 @@ auto search_acceptable_aligned_paired(searchinfo_s_paired const &searchinfo,
   }
 
   if (opt_cluster_unoise != nullptr) {
-    auto const mismatches = hit->mismatches_total;
-    auto target_abundance =
-        static_cast<int64_t>(db_getabundance(target_seqno_r1));
+    auto target_abundance = static_cast<int64_t>(db_getabundance(target_seqno_r1));
     if (target_abundance < 1) {
       target_abundance = 1;
     }
     auto const skew = 1.0 * searchinfo.qsize / target_abundance;
-    auto const beta =
-        1.0 / std::pow(2, (1.0 * opt_unoise_alpha * mismatches) + 1);
+    auto const beta = 1.0 / std::pow(2, (1.0 * opt_unoise_alpha * hit->mismatches) + 1);
 
-    if (skew <= beta or mismatches == 0) {
+    if (skew <= beta or hit->mismatches == 0) {
       /* accepted */
       hit->accepted = true;
       hit->weak = false;
@@ -537,102 +536,84 @@ auto align_delayed_paired(searchinfo_s_paired *searchinfo) -> void {
           nwcigar_r2 = xstrdup("");
         }
 
+        auto const query_len = searchinfo->qseqlen_r1 + searchinfo->qseqlen_r2;
+        auto const target_len = static_cast<int>(db_getsequencelen(target_r1) +
+                                                 db_getsequencelen(target_r2));
+
         hit->aligned = true;
-        hit->r1.nwalignment = nwcigar_r1 != nullptr ? nwcigar_r1 : "";
-        hit->r1.matches =
-            nwalignmentlength_r1 - (nwalignmentlength_r1 - nwmatches_r1);
-        hit->r1.mismatches =
-            (nwalignmentlength_r1 - nwmatches_r1) -
-            (nwalignmentlength_r1 - nwmatches_r1 - nwmismatches_r1);
+        hit->r1.nwalignment = nwcigar_r1;
+        hit->r1.nwscore = static_cast<int>(nwscore_r1);
+        hit->r1.nwdiff = static_cast<int>(nwalignmentlength_r1 - nwmatches_r1);
         hit->r1.nwgaps = nwgaps_r1;
-        hit->r1.nwindels =
-            nwalignmentlength_r1 - nwmatches_r1 - nwmismatches_r1;
+        hit->r1.nwindels = static_cast<int>(nwalignmentlength_r1 - nwmatches_r1 -
+                                            nwmismatches_r1);
         hit->r1.nwalignmentlength = nwalignmentlength_r1;
+        hit->r1.matches = static_cast<int>(nwmatches_r1);
+        hit->r1.mismatches = static_cast<int>(nwmismatches_r1);
+        hit->r1.nwid = (hit->r1.nwalignmentlength != 0)
+                           ? (100.0 * (hit->r1.nwalignmentlength -
+                                       hit->r1.nwdiff) /
+                              hit->r1.nwalignmentlength)
+                           : 0.0;
+        hit->r1.shortest = std::min(searchinfo->qseqlen_r1,
+                                    static_cast<int>(db_getsequencelen(target_r1)));
+        hit->r1.longest = std::max(searchinfo->qseqlen_r1,
+                                   static_cast<int>(db_getsequencelen(target_r1)));
+        align_trim(&hit->r1);
 
-        struct hit temp_hit_r1 {};
-        temp_hit_r1.nwalignment = nwcigar_r1;
-        temp_hit_r1.nwalignmentlength = nwalignmentlength_r1;
-        temp_hit_r1.nwgaps = nwgaps_r1;
-        temp_hit_r1.nwdiff = nwalignmentlength_r1 - nwmatches_r1;
-        temp_hit_r1.nwindels =
-            nwalignmentlength_r1 - nwmatches_r1 - nwmismatches_r1;
-        temp_hit_r1.matches = nwalignmentlength_r1 - temp_hit_r1.nwdiff;
-        temp_hit_r1.mismatches = temp_hit_r1.nwdiff - temp_hit_r1.nwindels;
-        temp_hit_r1.shortest =
-            std::min(searchinfo->qseqlen_r1, (int)db_getsequencelen(target_r1));
-        temp_hit_r1.longest =
-            std::max(searchinfo->qseqlen_r1, (int)db_getsequencelen(target_r1));
-        align_trim(&temp_hit_r1);
-        hit->r1.internal_alignmentlength = temp_hit_r1.internal_alignmentlength;
-        hit->r1.internal_gaps = temp_hit_r1.internal_gaps;
-        hit->r1.internal_indels = temp_hit_r1.internal_indels;
-        hit->r1.trim_q_left = temp_hit_r1.trim_q_left;
-        hit->r1.trim_q_right = temp_hit_r1.trim_q_right;
-        hit->r1.trim_t_left = temp_hit_r1.trim_t_left;
-        hit->r1.trim_t_right = temp_hit_r1.trim_t_right;
-        hit->r1.trim_aln_left = temp_hit_r1.trim_aln_left;
-        hit->r1.trim_aln_right = temp_hit_r1.trim_aln_right;
-        hit->r1.id = temp_hit_r1.id;
-
-        hit->r2.nwalignment = nwcigar_r2 != nullptr ? nwcigar_r2 : "";
-        hit->r2.matches =
-            nwalignmentlength_r2 - (nwalignmentlength_r2 - nwmatches_r2);
-        hit->r2.mismatches =
-            (nwalignmentlength_r2 - nwmatches_r2) -
-            (nwalignmentlength_r2 - nwmatches_r2 - nwmismatches_r2);
+        hit->r2.nwalignment = nwcigar_r2;
+        hit->r2.nwscore = static_cast<int>(nwscore_r2);
+        hit->r2.nwdiff = static_cast<int>(nwalignmentlength_r2 - nwmatches_r2);
         hit->r2.nwgaps = nwgaps_r2;
-        hit->r2.nwindels =
-            nwalignmentlength_r2 - nwmatches_r2 - nwmismatches_r2;
+        hit->r2.nwindels = static_cast<int>(nwalignmentlength_r2 - nwmatches_r2 -
+                                            nwmismatches_r2);
         hit->r2.nwalignmentlength = nwalignmentlength_r2;
+        hit->r2.matches = static_cast<int>(nwmatches_r2);
+        hit->r2.mismatches = static_cast<int>(nwmismatches_r2);
+        hit->r2.nwid = (hit->r2.nwalignmentlength != 0)
+                           ? (100.0 * (hit->r2.nwalignmentlength -
+                                       hit->r2.nwdiff) /
+                              hit->r2.nwalignmentlength)
+                           : 0.0;
+        hit->r2.shortest = std::min(searchinfo->qseqlen_r2,
+                                    static_cast<int>(db_getsequencelen(target_r2)));
+        hit->r2.longest = std::max(searchinfo->qseqlen_r2,
+                                   static_cast<int>(db_getsequencelen(target_r2)));
+        align_trim(&hit->r2);
 
-        struct hit temp_hit_r2 {};
-        temp_hit_r2.nwalignment = nwcigar_r2;
-        temp_hit_r2.nwalignmentlength = nwalignmentlength_r2;
-        temp_hit_r2.nwgaps = nwgaps_r2;
-        temp_hit_r2.nwdiff = nwalignmentlength_r2 - nwmatches_r2;
-        temp_hit_r2.nwindels =
-            nwalignmentlength_r2 - nwmatches_r2 - nwmismatches_r2;
-        temp_hit_r2.matches = nwalignmentlength_r2 - temp_hit_r2.nwdiff;
-        temp_hit_r2.mismatches = temp_hit_r2.nwdiff - temp_hit_r2.nwindels;
-        temp_hit_r2.shortest =
-            std::min(searchinfo->qseqlen_r2, (int)db_getsequencelen(target_r2));
-        temp_hit_r2.longest =
-            std::max(searchinfo->qseqlen_r2, (int)db_getsequencelen(target_r2));
-        align_trim(&temp_hit_r2);
-        hit->r2.internal_alignmentlength = temp_hit_r2.internal_alignmentlength;
-        hit->r2.internal_gaps = temp_hit_r2.internal_gaps;
-        hit->r2.internal_indels = temp_hit_r2.internal_indels;
-        hit->r2.trim_q_left = temp_hit_r2.trim_q_left;
-        hit->r2.trim_q_right = temp_hit_r2.trim_q_right;
-        hit->r2.trim_t_left = temp_hit_r2.trim_t_left;
-        hit->r2.trim_t_right = temp_hit_r2.trim_t_right;
-        hit->r2.trim_aln_left = temp_hit_r2.trim_aln_left;
-        hit->r2.trim_aln_right = temp_hit_r2.trim_aln_right;
-        hit->r2.id = temp_hit_r2.id;
-
-        hit->mismatches_total = hit->r1.mismatches + hit->r2.mismatches;
-        hit->nwgaps_total = hit->r1.nwgaps + hit->r2.nwgaps;
-        hit->nwalignment_cols_total =
+        hit->matches = hit->r1.matches + hit->r2.matches;
+        hit->mismatches = hit->r1.mismatches + hit->r2.mismatches;
+        hit->nwgaps = hit->r1.nwgaps + hit->r2.nwgaps;
+        hit->nwindels = hit->r1.nwindels + hit->r2.nwindels;
+        hit->nwalignmentlength =
             hit->r1.nwalignmentlength + hit->r2.nwalignmentlength;
-        hit->internal_alignment_cols_total =
+        hit->internal_alignmentlength =
             hit->r1.internal_alignmentlength + hit->r2.internal_alignmentlength;
-        hit->internal_gaps_total =
-            hit->r1.internal_gaps + hit->r2.internal_gaps;
-        hit->internal_indels_total =
-            hit->r1.internal_indels + hit->r2.internal_indels;
+        hit->internal_gaps = hit->r1.internal_gaps + hit->r2.internal_gaps;
+        hit->internal_indels = hit->r1.internal_indels + hit->r2.internal_indels;
+        hit->shortest = std::min(query_len, target_len);
+        hit->longest = std::max(query_len, target_len);
+        hit->nwdiff = hit->nwalignmentlength - hit->matches;
+        hit->nwscore = static_cast<int>(nwscore_r1 + nwscore_r2);
+        if (hit->nwalignmentlength != 0) {
+          hit->nwid =
+              100.0 * (hit->nwalignmentlength - hit->nwdiff) / hit->nwalignmentlength;
+        } else {
+          hit->nwid = 0.0;
+        }
+
+        hit->mismatches_total = hit->mismatches;
+        hit->nwgaps_total = hit->nwgaps;
+        hit->nwalignment_cols_total = hit->nwalignmentlength;
+        hit->internal_alignment_cols_total = hit->internal_alignmentlength;
+        hit->internal_gaps_total = hit->internal_gaps;
+        hit->internal_indels_total = hit->internal_indels;
 
         /* test accept/reject criteria after alignment */
         if (search_acceptable_aligned_paired(*searchinfo, hit)) {
           searchinfo->accepts++;
         } else {
           searchinfo->rejects++;
-        }
-
-        if (nwcigar_r1 != nullptr) {
-          xfree(nwcigar_r1);
-        }
-        if (nwcigar_r2 != nullptr) {
-          xfree(nwcigar_r2);
         }
 
         ++i;
@@ -653,8 +634,6 @@ auto align_delayed_paired(searchinfo_s_paired *searchinfo) -> void {
 auto search_onequery_paired(searchinfo_s_paired *searchinfo, int seqmask)
     -> void {
   searchinfo->hit_count = 0;
-  searchinfo->hits_v.clear();
-  searchinfo->hits = nullptr;
 
   search16_qprep(searchinfo->s_r1, searchinfo->qsequence_r1,
                  searchinfo->qseqlen_r1);
@@ -709,11 +688,14 @@ auto search_onequery_paired(searchinfo_s_paired *searchinfo, int seqmask)
          (not minheap_isempty(searchinfo->m))) {
     elem_t const e = minheap_poplast(searchinfo->m);
 
-    searchinfo->hits_v.emplace_back();
-    searchinfo->hits = searchinfo->hits_v.data();
     hit_paired_s *hit = searchinfo->hits + searchinfo->hit_count;
+    *hit = hit_paired_s{};
 
     hit->target = static_cast<int>(e.seqno);
+    hit->target_seqno_r1 =
+        (*searchinfo->target_seqnos_r1)[static_cast<std::size_t>(e.seqno)];
+    hit->target_seqno_r2 =
+        (*searchinfo->target_seqnos_r2)[static_cast<std::size_t>(e.seqno)];
     hit->count = e.count;
     hit->strand = searchinfo->strand;
     hit->rejected = false;
@@ -775,8 +757,6 @@ auto search_findbest2_bysize_paired(searchinfo_s_paired *si_p,
     -> hit_paired_s * {
   hit_paired_s *best = nullptr;
 
-  paired_target_seqnos_r1 = si_p->target_seqnos_r1;
-
   for (int i = 0; i < si_p->hit_count; i++) {
     if ((best == nullptr) or
         (hit_compare_bysize_typed_paired(si_p->hits + i, best) < 0)) {
@@ -792,8 +772,6 @@ auto search_findbest2_bysize_paired(searchinfo_s_paired *si_p,
       }
     }
   }
-
-  paired_target_seqnos_r1 = nullptr;
 
   if ((best != nullptr) and not best->accepted) {
     best = nullptr;

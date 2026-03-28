@@ -61,10 +61,12 @@
 #include "vsearch.h"
 #include "allpairs.h"
 #include "chimera.h"
+#include "chimera_paired.h"
 #include "cluster.h"
 #include "cluster_paired.h"
 #include "cut.h"
 #include "derep.h"
+#include "derep_paired.h"
 #include "derep_prefix.h"
 #include "derep_smallmem.h"
 #include "dynlibs.h"
@@ -88,7 +90,6 @@
 #include "sortbylength.h"
 #include "sortbysize.h"
 #include "subsample.h"
-#include "tav_extension.h"
 #include "udb.h"
 #include "userfields.h"
 #include "utils/compare_strings_nocase.hpp"
@@ -5877,7 +5878,7 @@ auto cmd_usearch_global(struct Parameters const &parameters) -> void {
     if ((opt_id < 0.0) or (opt_id > 1.0)) {
       fatal("Identity between 0.0 and 1.0 must be specified with --id");
     }
-    tav_usearch_global(parameters, cmdline, prog_header.data());
+    usearch_global_paired(parameters, cmdline, prog_header.data());
     return;
   }
 
@@ -6134,7 +6135,7 @@ auto cmd_chimera(struct Parameters const &parameters) -> void {
             "--uchimeout, --uchimealns, and/or --borderline");
     }
 
-    tav_uchime3_denovo(parameters);
+    uchime3_denovo_paired(parameters);
     return;
   }
 
@@ -6452,7 +6453,7 @@ auto main(int argc, char **argv) -> int {
     auto const paired_fastx_uniques_input =
         parameters.opt_interleaved or (parameters.opt_reverse != nullptr);
     if (paired_fastx_uniques_input) {
-      tav_fastx_uniques(parameters);
+      fastx_uniques_paired(parameters);
     } else {
       derep(parameters, parameters.opt_fastx_uniques, false);
     }

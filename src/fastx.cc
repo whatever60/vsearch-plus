@@ -58,10 +58,10 @@
 
 */
 
-#include "dynlibs.h"
 #include "utils/fatal.hpp"
 #include "utils/span.hpp"
 #include "vsearch.h"
+#include "dynlibs.h"
 #include <algorithm> // std::find_first_of
 #include <array>
 #include <cinttypes> // macros PRIu64 and PRId64

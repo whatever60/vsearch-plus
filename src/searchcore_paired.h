@@ -18,7 +18,7 @@
 #ifndef SEARCHCORE_PAIRED_H
 #define SEARCHCORE_PAIRED_H
 
-#include "cpu.h"
+#include "searchcore.h"
 
 #include <cstdint>
 #include <string>
@@ -37,7 +37,19 @@ struct record_paired_s {
   int64_t first_seen = 0;
 };
 
-struct align_stats_paired_s {
+struct hit_paired_s {
+  int target = -1;
+  unsigned int target_seqno_r1 = 0;
+  unsigned int target_seqno_r2 = 0;
+  int strand = 0;
+  unsigned int count = 0;
+  bool accepted = false;
+  bool rejected = false;
+  bool aligned = false;
+  bool weak = false;
+
+  int nwscore = 0;
+  int nwdiff = 0;
   int matches = 0;
   int mismatches = 0;
   int nwgaps = 0;
@@ -46,27 +58,19 @@ struct align_stats_paired_s {
   int internal_alignmentlength = 0;
   int internal_gaps = 0;
   int internal_indels = 0;
-  int trim_q_left = 0;
-  int trim_q_right = 0;
-  int trim_t_left = 0;
-  int trim_t_right = 0;
-  int trim_aln_left = 0;
-  int trim_aln_right = 0;
+  int shortest = 0;
+  int longest = 0;
+  double nwid = 0.0;
+  double id0 = 0.0;
+  double id1 = 0.0;
+  double id2 = 0.0;
+  double id3 = 0.0;
+  double id4 = 0.0;
   double id = 0.0;
-  std::string nwalignment;
-};
+  double mid = 0.0;
 
-struct hit_paired_s {
-  int target = -1;
-  int strand = 0;
-  unsigned int count = 0;
-  bool accepted = false;
-  bool rejected = false;
-  bool aligned = false;
-  bool weak = false;
-
-  align_stats_paired_s r1;
-  align_stats_paired_s r2;
+  struct hit r1{};
+  struct hit r2{};
 
   int mismatches_total = 0;
   int nwgaps_total = 0;
@@ -74,21 +78,19 @@ struct hit_paired_s {
   int internal_alignment_cols_total = 0;
   int internal_gaps_total = 0;
   int internal_indels_total = 0;
-  double id = 0.0;
-  double mid = 0.0;
 };
 
 struct searchinfo_s_paired {
   int query_no = 0;
   int strand = 0;
   int64_t qsize = 0;
-
-  std::string query_head;
+  int query_head_len = 0;
+  int query_head_alloc = 0;
+  char *query_head = nullptr;
 
   int qseqlen_r1 = 0;
   int qseqlen_r2 = 0;
-  std::vector<char> qsequence_r1_v;
-  std::vector<char> qsequence_r2_v;
+  int seq_alloc = 0;
   char *qsequence_r1 = nullptr;
   char *qsequence_r2 = nullptr;
 
@@ -97,13 +99,11 @@ struct searchinfo_s_paired {
   unsigned int const *kmersample_r1 = nullptr;
   unsigned int const *kmersample_r2 = nullptr;
 
-  std::vector<count_t> kmers_v;
   count_t *kmers = nullptr;
 
   std::vector<unsigned int> const *target_seqnos_r1 = nullptr;
   std::vector<unsigned int> const *target_seqnos_r2 = nullptr;
 
-  std::vector<hit_paired_s> hits_v;
   hit_paired_s *hits = nullptr;
   int hit_count = 0;
 

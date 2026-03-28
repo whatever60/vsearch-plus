@@ -5,7 +5,7 @@ This document captures parity status between stock `vsearch --uchime3_denovo` an
 ## Scope and intent
 
 - Stock `uchime3_denovo` evaluates one denoised sequence stream.
-- Paired extension evaluates synchronized denoised sequence pairs `(R1, R2)`.
+- Paired native implementation evaluates synchronized denoised sequence pairs `(R1, R2)`.
 - Design target: preserve stock command intent (abundance-aware de novo chimera detection), while extending to paired data with explicit breakpoint logic.
 
 ## Input and output semantics
@@ -54,7 +54,7 @@ This document captures parity status between stock `vsearch --uchime3_denovo` an
 
 Stock implementation: `cmd_chimera()` routes plain `--uchime3_denovo` (without paired input) to `chimera()`. Parameter guards enforce `abskew >= 1`, `xn > 1`, and `dn > 0`.
 
-Paired extension implementation: `cmd_chimera()` detects paired input (`R2` as second positional input or `--interleaved`) and routes to `tav_uchime3_denovo()`. It enforces the same `abskew/xn/dn` guards, enforces split FASTA pairing (`--chimeras` with `--chimeras2`, `--nonchimeras` with `--nonchimeras2`), and requires at least one output among paired FASTA, TSV catalog, `--tabbedout`, `--uchimeout`, `--uchimealns`, or `--borderline`.
+Paired native implementation: `cmd_chimera()` detects paired input (`R2` as second positional input or `--interleaved`) and routes to `uchime3_denovo_paired()`. It enforces the same `abskew/xn/dn` guards, enforces split FASTA pairing (`--chimeras` with `--chimeras2`, `--nonchimeras` with `--nonchimeras2`), and requires at least one output among paired FASTA, TSV catalog, `--tabbedout`, `--uchimeout`, `--uchimealns`, or `--borderline`.
 
 Extension mechanism: paired mode is an explicit alternate execution path, not a flag inside the stock `chimera()` loop.
 
@@ -62,30 +62,30 @@ Extension mechanism: paired mode is an explicit alternate execution path, not a 
 
 Stock implementation: `chimera()` reads the denoised FASTA from `--uchime3_denovo`, optionally applies dust/hardmask (`opt_qmask` path), and then calls `db_sortbyabundance()`. Query processing order is abundance descending.
 
-Paired extension implementation: `tav_uchime3_denovo()` calls `load_paired_records_from_fastx()` on paired FASTX input (split positional `R1/R2` or interleaved via `--interleaved`). The loader enforces synchronized record counts, applies the same qmask/hardmask operations to both ends. Records are then sorted by:
+Paired native implementation: `uchime3_denovo_paired()` loads paired FASTX input directly (split positional `R1/R2` or interleaved via `--interleaved`). The loader enforces synchronized record counts, applies the same qmask/hardmask operations to both ends, normalizes paired headers across split/interleaved input, and then sorts records by:
 1. abundance descending
 2. header ascending
 3. left sequence ascending
 4. right sequence ascending
 
-Extension mechanism: each processing unit is a `TavRecord` pair `(left,right,abundance,header)` rather than a single sequence.
+Extension mechanism: each processing unit is a native `record_paired_s` pair `(R1,R2,abundance,header)` rather than a single sequence.
 
 ### Step 3: Parent search space construction and growth rule
 
 Stock implementation: in denovo mode, `dbindex_prepare()` initializes an initially empty parent index. `chimera()` sets `opt_self=1`, `opt_selfid=1`, and `opt_maxsizeratio = 1/abskew` so candidate parents must be sufficiently more abundant. After each query is classified as non-chimeric (`status < suspicious`), `dbindex_addsequence(seqno, opt_qmask)` inserts that sequence for future queries.
 
-Paired extension implementation: `tav_uchime3_denovo()` now reuses stock dbindex primitives directly:
-- `dbindex_prepare(0, opt_qmask)` initializes one stock k-mer index over the in-memory paired sequence store (left and right ends are stored as alternating sequence slots).
-- `parent_pool_indices` tracks non-chimeric parent record IDs in abundance order.
-- After each non-chimeric query, `dbindex_addsequence(left_seqno, opt_qmask)` and `dbindex_addsequence(right_seqno, opt_qmask)` are called to incrementally expose that pair as future parent material.
+Paired native implementation: `uchime3_denovo_paired()` now reuses the shared paired dbindex layer directly:
+- `dbindex_prepare_paired(&records_paired, 1, opt_qmask)` initializes a paired k-mer index over the in-memory paired record store.
+- the native engine keeps a logical paired target mapping through `target_seqnos_r1_paired` and `target_seqnos_r2_paired`.
+- after each non-chimeric query, `dbindex_addsequence_paired(current_seqno, opt_qmask)` is called to incrementally expose that pair as future parent material.
 
-Extension mechanism: both modes use a monotonic non-chimeric parent pool and incremental `dbindex_addsequence` growth; paired mode keeps end-specific semantics by mapping left/right ends onto deterministic sequence-slot parity (even = R1, odd = R2).
+Extension mechanism: both modes use a monotonic non-chimeric parent index with incremental growth; paired mode keeps end-specific semantics inside the shared paired dbindex layer rather than by managing two separate stock dbindex insertions.
 
 ### Step 4: Candidate enumeration for the current query
 
 Stock implementation: each query is split into `parts=4` (`partition_query()` for uchime/uchime2/uchime3). `search_onequery()` plus `search_joinhits()` collects accepted hits from each part, deduplicates targets, and builds `cand_list`. Full-query global alignments are then computed for every candidate (`search16`, with linear-memory fallback when SIMD overflows).
 
-Paired extension implementation:
+Paired native implementation:
 - `search_onequery()` / `search_joinhits()` are not called directly in paired uchime mode.
 - Query kmers are looked up through stock dbindex match lists (`dbindex_getmatchlist`/`dbindex_getmatchcount`/`dbindex_getmapping`).
 - R1 k-mers only contribute from even mapped sequence slots (left-end parents), and R2 k-mers only contribute from odd mapped sequence slots (right-end parents), then both contributions are summed to a pair-level parent score.
@@ -104,7 +104,7 @@ Stock implementation: there is no explicit pre-parent-search `best_one` variable
 - `QT = max(QA, QB)`
 This one-parent baseline exists only after two parents have already been selected/evaluated. If two parents are not found (`find_best_parents() == 0`), stock returns `Status::no_parents` and emits no-parent outputs (placeholder parent fields in `uchimeout`).
 
-Paired extension implementation: `best_one_score` is now computed from the selected two-parent evaluation itself as:
+Paired native implementation: `best_one_score` is now computed from the selected two-parent evaluation itself as:
 `best_one = max(match_QA, match_QB)` (count scale), mirroring stock's `QT = max(QA,QB)` baseline semantics within the same evaluation stage.
 For no-parent cases, `best_one` falls back to full query-length count for reporting continuity.
 
@@ -123,7 +123,7 @@ Stock implementation detail (`find_matches()` + `find_best_parents()`):
 - Before picking parent 2, for every `qpos` where parent 1 was tied for best, zero all candidates' `match` entries inside that winning 32 bp window (stock's way to remove already-explained windows).
 - Recompute smoothing/wins on the masked matrix and pick parent 2.
 
-Paired extension implementation detail:
+Paired native implementation detail:
 - Use concatenated query axis:
   `[left query positions in forward order][right query positions in forward order]`.
 - Build candidate match vectors from full-query alignment CIGARs (paired analog of stock `find_matches()`).
@@ -163,7 +163,7 @@ It computes:
 `h = left_h * right_h`
 and also checks the reverse orientation (swap yes/no) when anti-chimera orientation is stronger. Best `h` determines the model.
 
-Paired extension implementation:
+Paired native implementation:
 - For each selected parent pair, both ends are globally aligned and converted into unified gapped strings (`Q`, `A`, `B`) using stock-like insertion normalization.
 - Ambiguous and gap-adjacent columns are marked ignored exactly in stock style.
 - `diffs` are emitted with stock symbols (`A/B/N/?/space`), with reverse-orientation swap handling (`A<->B`) when anti-chimera orientation is stronger.
@@ -198,7 +198,7 @@ Stock implementation (`uchime2/3` path in `eval_parents()`): after best model se
 `uchime3_denovo` marks chimeric when the model is perfect and best single parent is imperfect:
 `match_QM == cols` and `QT < 100.0`.
 
-Paired extension implementation: after selecting/evaluating two parents on the concatenated paired axis, it uses the same uchime3 condition in paired form:
+Paired native implementation: after selecting/evaluating two parents on the concatenated paired axis, it uses the same uchime3 condition in paired form:
 - `match_QM`: non-ignored columns explained by the selected two-parent model
 - `cols`: total non-ignored columns
 - `QT = max(QA, QB)`: best one-parent identity
@@ -208,11 +208,11 @@ Classify as chimeric iff:
 
 Extension mechanism: parity is kept in the decision rule itself; paired breakpoint class (`LEFT_BREAK`/`MIDDLE_BREAK`/`RIGHT_BREAK`) is retained as annotation in paired reports, not as an extra classification gate.
 
-### Step 9: Parent-pool update after classification
+### Step 9: Parent-index update after classification
 
 Stock implementation: all non-chimeric outcomes (`status < suspicious`) are added to the denovo parent dbindex, enabling incremental parent search for later, lower-abundance queries.
 
-Paired extension implementation: all non-chimeric pairs are appended to `parent_pool_indices`; chimeric pairs are never added.
+Paired native implementation: all non-chimeric pairs are added to the paired denovo parent index via `dbindex_addsequence_paired(...)`; chimeric pairs are never added.
 
 Extension mechanism: identical growth policy, but parent units are paired records.
 
@@ -227,7 +227,7 @@ Stock implementation file/schema summary:
 - `--uchimealns`: stock textual alignment report with aligned query/parents plus `Diffs`, `Votes`, and `Model` lines.
 - `--borderline`: FASTA output for borderline calls (normally unused in uchime2/3 decision path).
 
-Paired extension comparison against stock:
+Paired native implementation comparison against stock:
 - Same option name, mostly same schema family:
   - `--uchimeout` keeps stock-like column semantics (including `--uchimeout5` behavior), but values come from paired scoring/counts.
 - Same option name, paired-adapted body format:

@@ -13,8 +13,23 @@
 
 ## Roadmap and Logs
 
+- `roadmap/fastx_uniques_paired_native_sop.md`
+- `roadmap/fastx_uniques_paired_file_review_checklist.md`
+- `roadmap/cluster_unoise_paired_native_sop.md`
+- `roadmap/cluster_unoise_paired_file_review_checklist.md`
+- `roadmap/uchime3_denovo_paired_native_sop.md`
+- `roadmap/uchime3_denovo_paired_file_review_checklist.md`
+- `roadmap/usearch_global_paired_native_sop.md`
+- `roadmap/usearch_global_paired_file_review_checklist.md`
 - `roadmap/tav_extension_plan.md`
 - `roadmap/tav_extension_implementation_log.md`
+
+## Callstacks
+
+- `callstacks/fastx_uniques.txt`
+- `callstacks/cluster_unoise.txt`
+- `callstacks/uchime3_denovo.txt`
+- `callstacks/usearch_global.txt`
 
 ## Taxonomy
 

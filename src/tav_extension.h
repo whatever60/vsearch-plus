@@ -18,6 +18,10 @@
 #ifndef TAV_EXTENSION_H
 #define TAV_EXTENSION_H
 
+/* Legacy paired-end extension surface.
+   Kept only as historical reference; no active CLI path or build target
+   depends on these declarations anymore. */
+
 struct Parameters;
 
 auto tav_is_catalog_file(char const *filename) -> bool;

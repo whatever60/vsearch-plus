@@ -55,6 +55,7 @@ arch.h \
 attributes.h \
 bitmap.h \
 chimera.h \
+chimera_paired.h \
 city.h \
 cluster.h \
 cluster_paired.h \
@@ -64,6 +65,7 @@ db.h \
 dbhash.h \
 dbindex.h \
 derep.h \
+derep_paired.h \
 derep_prefix.h \
 derep_smallmem.h \
 dynlibs.h \
@@ -102,7 +104,6 @@ sortbylength.h \
 sortbysize.h \
 subsample.h \
 tax.h \
-tav_extension.h \
 udb.h \
 unique.h \
 userfields.h \
@@ -162,6 +163,7 @@ arch.cc \
 attributes.cc \
 bitmap.cc \
 chimera.cc \
+chimera_paired.cc \
 cluster.cc \
 cluster_paired.cc \
 cut.cc \
@@ -170,6 +172,7 @@ dbhash.cc \
 dbindex.cc \
 dbindex_paired.cc \
 derep.cc \
+derep_paired.cc \
 derep_prefix.cc \
 derep_smallmem.cc \
 dynlibs.cc \
@@ -196,6 +199,7 @@ otutable.cc \
 rereplicate.cc \
 results.cc \
 search.cc \
+search_paired.cc \
 searchcore.cc \
 searchcore_paired.cc \
 search_exact.cc \
@@ -208,7 +212,6 @@ sortbylength.cc \
 sortbysize.cc \
 subsample.cc \
 tax.cc \
-tav_extension.cc \
 udb.cc \
 unique.cc \
 userfields.cc \

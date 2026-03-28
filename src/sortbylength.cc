@@ -61,8 +61,8 @@
 #include "utils/check_output_filehandle.hpp"
 #include "utils/fatal.hpp"
 #include "utils/open_file.hpp"
-#include "utils/progress.hpp"
 #include "vsearch.h"
+#include "utils/progress.hpp"
 #include <algorithm> // std::sort, std::min
 #include <cassert>
 #include <cstdio>  // std::FILE, std::fprintf, std::size_t

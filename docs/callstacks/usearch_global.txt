@@ -1,0 +1,112 @@
+Stock `usearch_global` complete callstack (`--threads > 1`)
+
+command dispatch
+  execute-command chain
+    -> cmd_usearch_global(parameters)
+      -> usearch_global(parameters, cmdline, progheader)
+
+setup phase
+  -> search_prep(cmdline, progheader)
+     -> fopen_output(...) for enabled outputs
+     -> udb_detect_isudb(opt_db)
+     -> if UDB:
+        -> udb_read(opt_db, true, true)
+        -> results_show_samheader(...)
+        -> show_rusage()
+        -> seqcount = db_getsequencecount()
+     -> else FASTA/FASTQ:
+        -> db_read(opt_db, 0)
+        -> results_show_samheader(...)
+        -> optional dust_all() / hardmask_all()
+        -> show_rusage()
+        -> seqcount = db_getsequencecount()
+        -> dbindex_prepare(1, opt_dbmask)
+        -> dbindex_addallsequences(opt_dbmask)
+     -> normalize opt_maxrejects / opt_maxaccepts
+     -> compute tophits = min(seqcount, opt_maxrejects + opt_maxaccepts + MAXDELAYED)
+  -> open dbmatched/dbnotmatched outputs if requested
+  -> dbmatched = xmalloc(...), memset(...)
+  -> otutable_init()
+  -> query_fastx_h = fastx_open(parameters.opt_usearch_global)
+  -> allocate si_plus / si_minus / pthread arrays
+  -> xpthread_mutex_init(&mutex_input)
+  -> xpthread_mutex_init(&mutex_output)
+  -> progress_init("Searching", fastx_get_size(query_fastx_h))
+  -> search_thread_worker_run()
+
+thread worker orchestration
+  -> xpthread_attr_init/setdetachstate
+  -> for each worker t:
+     -> search_thread_init(si_plus + t)
+        -> unique_init()
+        -> xmalloc kmers
+        -> minheap_init(tophits)
+        -> xmalloc hits
+        -> init header/sequence allocation state
+        -> search16_init(...)
+     -> optional search_thread_init(si_minus + t)
+     -> xpthread_create(..., search_thread_worker, t)
+  -> each worker executes:
+     -> search_thread_worker(void *)
+        -> search_thread_run(t)
+           -> lock mutex_input
+           -> fastx_next(query_fastx_h, ...)
+           -> capture query header / sequence / seqno / abundance
+           -> ensure per-thread header/sequence buffers via xrealloc
+           -> copy plus-strand header+sequence
+           -> record progress = fastx_get_position(...)
+           -> unlock mutex_input
+           -> optional reverse_complement into si_minus[t]
+           -> search_query(t)
+              -> for each strand:
+                 -> optional dust(...) / hardmask(...)
+                 -> search_onequery(si, opt_qmask)
+              -> search_joinhits(si_plus + t, si_minus + t or nullptr, hits)
+              -> search_output_results(hits, ...)
+                 -> lock mutex_output
+                 -> compute toreport
+                 -> emit alnout/lcaout/samout
+                 -> emit otutable top hit or no-hit row
+                 -> emit fastapairs/qsegout/tsegout/uc/userout/blast6out
+                 -> emit matched/notmatched FASTA
+                 -> accumulate dbmatched[target]
+                 -> unlock mutex_output
+              -> free kept-hit nwalignment strings
+           -> lock mutex_output
+           -> update queries / queries_abundance / qmatches / qmatches_abundance
+           -> progress_update(progress)
+           -> unlock mutex_output
+           -> repeat until EOF
+  -> xpthread_join each worker
+  -> search_thread_exit(si_plus + t)
+     -> search16_exit()
+     -> unique_exit()
+     -> xfree hits / kmers / query_head / qsequence
+  -> optional search_thread_exit(si_minus + t)
+  -> xpthread_attr_destroy()
+
+tail phase
+  -> progress_done()
+  -> xpthread_mutex_destroy(&mutex_output)
+  -> xpthread_mutex_destroy(&mutex_input)
+  -> xfree pthread / si_plus / si_minus
+  -> fastx_close(query_fastx_h)
+  -> print/log match summaries
+  -> zero-complete OTU table rows for unmatched DB targets
+  -> otutable_print_biomout / otutabout / mothur_shared_out
+  -> otutable_done()
+  -> iterate dbmatched[] to write dbmatched / dbnotmatched FASTA outputs
+  -> xfree(dbmatched)
+  -> close dbmatched/dbnotmatched outputs
+  -> search_done()
+     -> dbindex_free()
+     -> db_free()
+     -> close remaining outputs
+     -> clean_up() for userfields when needed
+     -> show_rusage()
+
+Stock `usearch_global` complete callstack (`--threads = 1`)
+
+Same callstack as above, with one worker thread.
+
+There is no separate stock serial branch in `search.cc`; `search_thread_worker_run()` is still used, but it creates exactly one worker.

@@ -60,3 +60,6 @@
 
 auto usearch_global(struct Parameters const &parameters, char *cmdline,
                     char *progheader) -> void;
+
+auto usearch_global_paired(struct Parameters const &parameters, char *cmdline,
+                           char *progheader) -> void;

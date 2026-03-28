@@ -58,6 +58,9 @@
 
 */
 
+#ifndef SEARCHCORE_H
+#define SEARCHCORE_H
+
 #include "linmemalign.h"
 #include <array>
 #include <cstdint>
@@ -222,3 +225,5 @@ auto search_joinhits(struct searchinfo_s *si_p, struct searchinfo_s *si_m,
 
 auto search_enough_kmers(struct searchinfo_s const &searchinfo,
                          unsigned int count) -> bool;
+
+#endif

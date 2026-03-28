@@ -15,6 +15,10 @@
 
 */
 
+/* Legacy paired-end extension implementation.
+   This file is kept for historical reference and is no longer compiled into
+   the active vsearch binary. */
+
 #include "tav_extension.h"
 #include "align_simd.h"
 #include "attributes.h"

@@ -90,12 +90,6 @@ auto dbindex_addsequence_paired(unsigned int const seqno, int const seqmask)
                record.qsequence_r1.c_str(), &uniquecount_r1, &uniquelist_r1,
                seqmask);
 
-  unsigned int uniquecount_r2 = 0;
-  unsigned int const *uniquelist_r2 = nullptr;
-  unique_count(dbindex_uh_paired, opt_wordlength, record.qsequence_r2.size(),
-               record.qsequence_r2.c_str(), &uniquecount_r2, &uniquelist_r2,
-               seqmask);
-
   dbindex_map_paired[dbindex_count_paired] = seqno;
 
   for (auto i = 0U; i < uniquecount_r1; i++) {
@@ -109,6 +103,12 @@ auto dbindex_addsequence_paired(unsigned int const seqno, int const seqmask)
       ++kmercount_paired[kmer];
     }
   }
+
+  unsigned int uniquecount_r2 = 0;
+  unsigned int const *uniquelist_r2 = nullptr;
+  unique_count(dbindex_uh_paired, opt_wordlength, record.qsequence_r2.size(),
+               record.qsequence_r2.c_str(), &uniquecount_r2, &uniquelist_r2,
+               seqmask);
 
   for (auto i = 0U; i < uniquecount_r2; i++) {
     auto const kmer = dbindex_r2_key_paired(uniquelist_r2[i]);

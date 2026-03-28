@@ -193,15 +193,6 @@ struct chimera_info_s {
 
 static struct chimera_info_s *cia;
 
-enum struct Status : unsigned char {
-  no_parents,   // (0) non-chimeric
-  no_alignment, // (1) score < 0, non-chimeric
-  low_score,    // (2) score < minh, non-chimeric
-  suspicious,   // (3) score >= minh, not available with uchime2_denovo and
-                // uchime3_denovo
-  chimeric      // (4) score >= minh && divdiff >= opt_mindiv && ...
-};
-
 // anonymous namespace: limit visibility and usage to this translation unit
 namespace {} // end of anonymous namespace
 

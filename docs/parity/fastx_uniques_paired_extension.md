@@ -1,12 +1,12 @@
-# Paired-end extension for fastx_uniques
+# Native paired-end support for `fastx_uniques`
 
-This document describes the paired-end extension path for `vsearch --fastx_uniques` implemented in this workspace.
+This document describes the native paired-end path for `vsearch --fastx_uniques` implemented in this workspace.
 
 ## 1) What is the extension
 
 ### Scope
 
-Stock `fastx_uniques` dereplicates one sequence stream. The extension adds a paired-end mode when paired input is provided (second positional input for `R2`, or `--interleaved`), so each unique unit is a pair of anchors:
+Stock `fastx_uniques` dereplicates one sequence stream. The native paired path adds a paired-end mode when paired input is provided (second positional input for `R2`, or `--interleaved`), so each unique unit is a pair of anchors:
 
 - left anchor: from forward read (R1)
 - right anchor: from reverse read (R2), kept in native read orientation
@@ -30,7 +30,7 @@ Example:
   --tabbedout tav_catalog.tsv
 ```
 
-Without paired input (no second positional input and no `--interleaved`), command dispatch remains on stock derep behavior.
+Without paired input (no second positional input and no `--interleaved`), command dispatch remains on stock derep behavior in `src/derep.cc`.
 
 ### Input expectations
 
@@ -43,14 +43,20 @@ Low-level relationship in current code:
 
 - `fastx_uniques` input call stack:
   ```text
-  tav_fastx_uniques(...)
-    -> load_paired_records_from_fastx(..., apply_qmask=false)
-    -> anchor truncation + pair-key derep
+  main command switch in vsearch.cc
+    -> fastx_uniques_paired(...)
+       -> paired FASTX read loop
+       -> anchor truncation + pair-key derep
   ```
-- `cluster_unoise` / `uchime3_denovo` input call stack (same loader, different mode):
+- `cluster_unoise` / `uchime3_denovo` input call stack:
   ```text
-  tav_cluster_unoise(...) or tav_uchime3_denovo(...)
-    -> load_paired_records_from_fastx(..., apply_qmask=true)
+  cluster_unoise_paired(...)
+    -> native paired FASTX load in cluster_paired.cc
+    -> per-end qmask/hardmask during record ingestion
+
+  uchime3_denovo_paired(...)
+    -> native paired FASTX load in chimera_paired.cc
+    -> per-end qmask/hardmask during record ingestion
   ```
 
 ### Deduplication rule
@@ -113,7 +119,7 @@ Representative header is the header of the first observed read pair for a unique
 
 ### Header truncation behavior (`--notrunclabels`)
 
-Paired extension now follows stock parser behavior:
+Native paired mode now follows stock parser behavior:
 
 - default: truncate at first whitespace
 - with `--notrunclabels`: keep full header line (excluding newline)
@@ -136,7 +142,13 @@ Abundance aggregation uses the same size-input concept as stock (`--sizein`-awar
 - Paired mode writes two coordinated FASTA streams (`--fastaout` and `--fastaout_rev`) for left/right anchors.
 - In paired mode, right anchor sequences keep native R2 orientation.
 
-## 4) Practical guidance
+## 4) Ownership status
+
+- Stock single-end owner: `src/derep.cc`
+- Native paired owner: `src/derep_paired.cc`
+- Legacy `tav_fastx_uniques(...)` is retired from the CLI path and is no longer part of the build.
+
+## 5) Practical guidance
 
 - Use paired mode whenever downstream steps are paired-aware.
 - Keep `--fastq_trunclen` consistent between runs if reproducibility of anchors is important.
