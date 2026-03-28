@@ -53,7 +53,7 @@ It is based on:
 
 ## Purpose
 
-The goal is not to keep growing `src/tav_extension.cc`.
+The goal is not to keep growing the now-removed legacy `tav_extension.cc` path.
 
 The goal is to reproduce stock `uchime3_denovo` structure and behavior as faithfully as possible, while replacing one denoised sequence with one synchronized denoised pair.
 
@@ -106,8 +106,8 @@ Target module mapping:
 - shared `src/searchcore.cc` paired search pieces -> `src/searchcore_paired.cc`
 - shared `src/dbindex.cc` paired index surface -> `src/dbindex_paired.cc`
 
-Do not treat `src/tav_extension.cc` as the final native location for paired `uchime3_denovo`.
-It is a semantic reference and a temporary implementation source, not the end-state architecture.
+Do not treat the now-removed legacy `tav_extension.cc` path as the final native location for paired `uchime3_denovo`.
+It was a semantic reference and temporary implementation source, not the end-state architecture.
 
 ### 4. Keep paired names and function shapes close to stock
 
@@ -213,7 +213,7 @@ For each paired function and struct:
 3. compare body structure
 4. justify every extra line by paired semantics
 5. verify stock/shared paired primitives are reused where possible
-6. delete helper layers that only exist because the code came from `tav_extension.cc`
+6. delete helper layers that only exist because the code came from the now-removed legacy `tav_extension.cc` path
 
 ### 11. Only optimize after structural parity is correct
 

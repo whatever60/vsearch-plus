@@ -94,7 +94,7 @@ Current module mapping:
 
 If more stock modules become necessary for parity, duplicate those too as `*_paired.cc`.
 
-Do not keep expanding `src/tav_extension.cc` as the final native implementation path. That file is useful as a semantic reference, but the native paired command should live in stock-shaped paired modules.
+Do not keep expanding the now-removed legacy `tav_extension.cc` path as the final native implementation path. The native paired command should live in stock-shaped paired modules.
 
 ### 4. Keep paired names and function shapes as close to stock as possible
 
@@ -279,7 +279,7 @@ cmd_cluster
 - `src/searchcore.cc` -> `src/searchcore_paired.cc`
 - stock dbindex layer -> `src/dbindex_paired.cc`
 
-Do not continue growing `src/tav_extension.cc` for the final native paired `cluster_unoise` path.
+Do not continue growing the now-removed legacy `tav_extension.cc` path for the final native paired `cluster_unoise` path.
 
 ### 3. Struct mapping checklist
 

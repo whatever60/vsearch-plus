@@ -14,7 +14,7 @@ It is based on:
 - Paired `--fastx_uniques` now routes to `derep_paired()` in `src/derep_paired.cc`.
 - Single-end `--fastx_uniques` still routes to stock `derep(...)` in `src/derep.cc`.
 - The new paired public surface lives in `src/derep_paired.h`.
-- `src/tav_extension.cc` is no longer on the paired `fastx_uniques` CLI path and is no longer part of the build.
+- the now-removed legacy `tav_extension.cc` path is no longer on the paired `fastx_uniques` CLI path and is no longer part of the build.
 - `src/derep_paired.cc` now presents a single stock-shaped paired entrypoint, `derep_paired(...)`; the temporary helper lambdas were refolded into that function.
 - Native paired smoke tests passed for:
   - split input (`R1 R2`)
@@ -23,7 +23,7 @@ It is based on:
 
 ## Purpose
 
-The goal is to make paired `fastx_uniques` look like a stock-owned derep command extension, not like a lingering custom sidecar in `src/tav_extension.cc`.
+The goal is to make paired `fastx_uniques` look like a stock-owned derep command extension, not like a lingering custom sidecar in the now-removed legacy `tav_extension.cc` path.
 
 The working rule stays the same:
 
@@ -106,7 +106,7 @@ Anything beyond that should be questioned.
 Completion criteria for this command:
 
 - paired CLI routing no longer calls `tav_fastx_uniques(...)`
-- the build no longer compiles or links `src/tav_extension.cc`
+- the build no longer compiles or links the now-removed legacy `tav_extension.cc` path
 - the paired command lives in derep-owned files
 - split and interleaved paired smoke tests agree
 
@@ -118,7 +118,7 @@ Completion criteria for this command:
 4. Route paired `--fastx_uniques` input in `src/vsearch.cc` to `derep_paired(...)`.
 5. Keep single-end routing on stock `derep(...)` unchanged.
 6. Wire `src/derep_paired.cc` and `src/derep_paired.h` into the build.
-7. Remove `src/tav_extension.cc` from the build.
+7. Remove `tav_extension.cc` from the build.
 8. Verify the final link line no longer includes `tav_extension.o`.
 9. Run split paired smoke tests.
 10. Run interleaved paired smoke tests.

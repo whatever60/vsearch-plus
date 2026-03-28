@@ -71,7 +71,7 @@ It is based on:
 
 ## Purpose
 
-The goal is not to keep growing the extension path in `src/tav_extension.cc`.
+The goal is not to keep growing the extension path in the now-removed legacy `tav_extension.cc` path.
 
 The goal is to reproduce stock `usearch_global` structure and behavior as faithfully as possible, while replacing one query read and one target read with one synchronized query pair and one synchronized target pair.
 
@@ -126,8 +126,8 @@ Target module mapping:
 - `src/searchcore.cc` -> `src/searchcore_paired.cc`
 - `src/dbindex.cc`/`src/dbindex.h` surface -> `src/dbindex_paired.cc`/`src/dbindex_paired.h`
 
-Do not treat `src/tav_extension.cc` as the final native location for paired `usearch_global`.
-It is a semantic reference and a temporary implementation source, not the end-state architecture.
+Do not treat the now-removed legacy `tav_extension.cc` path as the final native location for paired `usearch_global`.
+It was a semantic reference and temporary implementation source, not the end-state architecture.
 
 ### 4. Keep paired names and function shapes close to stock
 
@@ -202,7 +202,7 @@ If a stock helper already does the right thing once given stock-like per-end sta
 
 ### 8. Avoid non-stock helpers unless they are truly necessary
 
-The default should be to delete/refold usearch-global-specific helpers from `src/tav_extension.cc` when the native port lands.
+The default should be to delete/refold usearch-global-specific helpers from the now-removed legacy `tav_extension.cc` path when the native port lands.
 
 Examples that should usually disappear into stock-shaped paired code rather than survive as long-term helpers:
 
@@ -230,7 +230,7 @@ For each paired function and struct:
 3. compare body structure
 4. justify every extra line by paired semantics
 5. verify stock/shared paired primitives are reused where possible
-6. delete helper layers that only exist because the current code came from `tav_extension.cc`
+6. delete helper layers that only exist because the current code came from the now-removed legacy `tav_extension.cc` path
 
 ### 11. Only optimize after structural parity is correct
 
@@ -319,7 +319,7 @@ Native paired `usearch_global` should call:
 - `search_onequery_paired`
 - `search_joinhits_paired`
 
-It should not keep using the older `tav_extension.cc` candidate/hit pipeline as its long-term engine.
+It should not keep using the older legacy `tav_extension.cc` candidate/hit pipeline as its long-term engine.
 
 ### 4. Reuse `dbindex_paired.cc` as the paired DBAccel layer
 
