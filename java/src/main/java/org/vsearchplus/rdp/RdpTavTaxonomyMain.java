@@ -21,7 +21,7 @@ import java.util.stream.Stream;
  */
 public final class RdpTavTaxonomyMain {
   private static final String DEFAULT_RDP_ROOT =
-      "data/third_party/rdp_classifier";
+      "data/rdp_classifier";
   private static final String DEFAULT_GENE = "16srrna";
 
   private RdpTavTaxonomyMain() {}
@@ -289,9 +289,11 @@ public final class RdpTavTaxonomyMain {
                                            final List<String> runtimeJars,
                                            final String javacBin)
       throws IOException, InterruptedException {
-    final Path javaSrcDir = repoRoot.resolve("java").resolve("src");
+    final Path javaSrcDir =
+        repoRoot.resolve("java").resolve("src").resolve("main").resolve(
+            "java");
     final Path javaBuildDir =
-        repoRoot.resolve("java").resolve("build").resolve("classes");
+        repoRoot.resolve("build").resolve("java").resolve("classes");
     Files.createDirectories(javaBuildDir);
 
     final List<String> sourceFiles;
@@ -478,7 +480,8 @@ public final class RdpTavTaxonomyMain {
    * Print combined launcher and classifier usage.
    */
   private static void printUsage() {
-    System.out.println("USAGE: rdp_tav_taxonomy [launcher options] [classification options]");
+    System.out.println(
+        "USAGE: vsearch-plus-rdp-tav [launcher options] [classification options]");
     System.out.println("Launcher options:");
     System.out.println(
         "  --rdp-root <dir>             RDP asset root containing manifest.json");

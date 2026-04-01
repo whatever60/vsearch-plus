@@ -6,16 +6,16 @@ It is based on:
 
 - `docs/parity/fastx_uniques_paired_extension.md`
 - `docs/callstacks/fastx_uniques.txt`
-- `src/derep.cc`
-- `src/derep_paired.cc`
+- `cpp/src/derep.cc`
+- `cpp/src/derep_paired.cc`
 
 ## Current Status
 
-- Paired `--fastx_uniques` now routes to `derep_paired()` in `src/derep_paired.cc`.
-- Single-end `--fastx_uniques` still routes to stock `derep(...)` in `src/derep.cc`.
-- The new paired public surface lives in `src/derep_paired.h`.
+- Paired `--fastx_uniques` now routes to `derep_paired()` in `cpp/src/derep_paired.cc`.
+- Single-end `--fastx_uniques` still routes to stock `derep(...)` in `cpp/src/derep.cc`.
+- The new paired public surface lives in `cpp/src/derep_paired.h`.
 - the now-removed legacy `tav_extension.cc` path is no longer on the paired `fastx_uniques` CLI path and is no longer part of the build.
-- `src/derep_paired.cc` now presents a single stock-shaped paired entrypoint, `derep_paired(...)`; the temporary helper lambdas were refolded into that function.
+- `cpp/src/derep_paired.cc` now presents a single stock-shaped paired entrypoint, `derep_paired(...)`; the temporary helper lambdas were refolded into that function.
 - Native paired smoke tests passed for:
   - split input (`R1 R2`)
   - interleaved input (`--interleaved`)
@@ -39,7 +39,7 @@ justify every divergence
 
 ### 1. Freeze stock ownership and callstack first
 
-For `fastx_uniques`, the stock owner is `src/derep.cc`, not `src/unique.cc`.
+For `fastx_uniques`, the stock owner is `cpp/src/derep.cc`, not `cpp/src/unique.cc`.
 
 That means the paired native port belongs beside `derep`, not beside low-level uniqueness helpers.
 
@@ -63,10 +63,10 @@ Shared paired rules:
 
 Target module mapping:
 
-- `src/derep.cc` -> `src/derep_paired.cc`
-- `src/derep.h` -> `src/derep_paired.h`
+- `cpp/src/derep.cc` -> `cpp/src/derep_paired.cc`
+- `cpp/src/derep.h` -> `cpp/src/derep_paired.h`
 
-Do not move this port into `src/unique.cc`, because `unique.cc` is not the stock command owner.
+Do not move this port into `cpp/src/unique.cc`, because `unique.cc` is not the stock command owner.
 
 ### 4. Keep paired naming stock-shaped
 
@@ -113,11 +113,11 @@ Completion criteria for this command:
 ## Concrete Implementation Checklist
 
 1. Document the stock and paired callstacks in `docs/callstacks/fastx_uniques.txt`.
-2. Create `src/derep_paired.h` and declare `derep_paired(...)` there.
-3. Create `src/derep_paired.cc` beside `src/derep.cc`.
-4. Route paired `--fastx_uniques` input in `src/vsearch.cc` to `derep_paired(...)`.
+2. Create `cpp/src/derep_paired.h` and declare `derep_paired(...)` there.
+3. Create `cpp/src/derep_paired.cc` beside `cpp/src/derep.cc`.
+4. Route paired `--fastx_uniques` input in `cpp/src/vsearch.cc` to `derep_paired(...)`.
 5. Keep single-end routing on stock `derep(...)` unchanged.
-6. Wire `src/derep_paired.cc` and `src/derep_paired.h` into the build.
+6. Wire `cpp/src/derep_paired.cc` and `cpp/src/derep_paired.h` into the build.
 7. Remove `tav_extension.cc` from the build.
 8. Verify the final link line no longer includes `tav_extension.o`.
 9. Run split paired smoke tests.
@@ -129,8 +129,8 @@ Completion criteria for this command:
 
 This command is done when all of these are true:
 
-- paired `fastx_uniques` is owned by `src/derep_paired.cc`
-- stock single-end `fastx_uniques` remains on `src/derep.cc`
+- paired `fastx_uniques` is owned by `cpp/src/derep_paired.cc`
+- stock single-end `fastx_uniques` remains on `cpp/src/derep.cc`
 - paired split and interleaved input both work
 - `--tabbedout`, `--fastaout`, and `--fastaout_rev` work in paired mode
 - the link line no longer includes `tav_extension.o`

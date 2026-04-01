@@ -9,6 +9,7 @@
 .deps
 .dirstamp
 /autom4te.cache
+/cpp/autom4te.cache/
 /bin
 /man/manpages
 /config.h
@@ -16,6 +17,8 @@
 /config.status
 /config.guess
 /config.sub
+/cpp/config.guess
+/cpp/config.sub
 /stamp-h1
 Makefile
 aclocal.m4
@@ -37,8 +40,16 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 *.class
-java/build/
+/java/build/
+/.gradle/
+/build/
 
 # Local datasets and generated outputs
-/data/
+/data/*
+!/data/README.md
+!/data/manifests/
+/data/manifests/*
+!/data/manifests/README.md
 /.tmp*/
+
+!/Makefile

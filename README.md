@@ -1,6 +1,6 @@
 [![Build and test](https://github.com/torognes/vsearch/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/torognes/vsearch/actions/workflows/build-and-test.yml)
 
-# VSEARCH
+# vsearch-plus
 
 ## Introduction
 
@@ -37,15 +37,16 @@ VSEARCH can directly read input query and database files that are compressed usi
 
 Most of the nucleotide based commands and options in USEARCH version 7 are supported, as well as some in version 8. The same option names as in USEARCH version 7 has been used in order to make VSEARCH an almost drop-in replacement. VSEARCH does not support amino acid sequences or local alignments. These features may be added in the future.
 
-## vsearch_plus additions
+## Introduction To This Fork
 
-This repository also contains `vsearch_plus` extensions that add paired-end TAV workflows and taxonomy assignment around stock VSEARCH and stock RDP Classifier.
+`vsearch-plus` is a VSEARCH-based repository that adds paired-end TAV workflows and paired-end taxonomy assignment around stock VSEARCH and the stock RDP Classifier.
 
 Key folders:
 
-* `src/` - VSEARCH C/C++ core and paired-end extension code
-* `python/` - Python download utility for RDP assets
+* `cpp/` - VSEARCH C/C++ core and paired-end extension code
 * `java/` - Java launcher and paired-end RDP extension sources
+* `scripts/` - wrapper commands and local build/download helpers
+* `data/` - local runtime data (ignored by Git)
 * `docs/` - parity notes, roadmap logs, and taxonomy control-flow documentation
 
 Paired-end parity docs:
@@ -59,8 +60,8 @@ Low-level stock-vs-extension function relationships are documented inline at the
 RDP helper commands:
 
 ```bash
-python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
-./rdp_tav_taxonomy --input data/real_out2/tav_left.fa --input2 data/real_out2/tav_right.fa --output data/real_out2/tav_taxonomy_native.tsv
+./scripts/vsearch-plus-rdp-download --output-root data/rdp_classifier
+./scripts/vsearch-plus-rdp-tav --input data/real_out2/tav_left.fa --input2 data/real_out2/tav_right.fa --output data/real_out2/tav_taxonomy_native.tsv
 ```
 
 ## Getting Help
@@ -71,9 +72,17 @@ If you can't find an answer in [online documentation](https://torognes.github.io
 
 In the example below, VSEARCH will identify sequences in the file database.fsa that are at least 90% identical on the plus strand to the query sequences in the file queries.fsa and write the results to the file alnout.txt.
 
-`./vsearch --usearch_global queries.fsa --db database.fsa --id 0.9 --alnout alnout.txt`
+`./scripts/vsearch-plus --usearch_global queries.fsa --db database.fsa --id 0.9 --alnout alnout.txt`
 
 ## Download and install
+
+For local development in this repository, use the wrapper scripts:
+
+```bash
+./scripts/build_cpp.sh
+./scripts/vsearch-plus --help
+./scripts/vsearch-plus-rdp-tav --help
+```
 
 **Source distribution** To download the source distribution from a [release](https://github.com/torognes/vsearch/releases) and build the executable and the documentation, use the following commands:
 
@@ -81,10 +90,7 @@ In the example below, VSEARCH will identify sequences in the file database.fsa t
 wget https://github.com/torognes/vsearch/archive/v2.30.5.tar.gz
 tar xzf v2.30.5.tar.gz
 cd vsearch-2.30.5
-./autogen.sh
-./configure CFLAGS="-O2" CXXFLAGS="-O2"
-make ARFLAGS="cr"
-sudo make install
+./scripts/build_cpp.sh
 ```
 
 You may customize the installation directory using the `--prefix=DIR` option to `configure`. If the compression libraries [zlib](https://www.zlib.net) and/or [bzip2](https://www.sourceware.org/bzip2/) are installed on the system, they will be detected automatically and support for compressed files will be included in vsearch (see section **Dependencies** below). Support for compressed files may be disabled using the `--disable-zlib` and `--disable-bzip2` options to `configure`. A PDF version of the manual will be created from the `vsearch.1` manual file if `ps2pdf` is available, unless disabled using the `--disable-pdfman` option to `configure`. It is recommended to run configure with the options `CFLAGS="-O2"` and `CXXFLAGS="-O2"`. Other  options may also be applied to `configure`, please run `configure -h` to see them all. GNU autoconf (version 2.63 or later), automake and the GCC C++ (`g++`) compiler is required to build vsearch. Version 3.82 or later of `make` may be required on Linux, while version 3.81 is sufficient on macOS.
@@ -95,15 +101,12 @@ To build VSEARCH on Debian and similar Linux distributions (Ubuntu etc) you'll n
 
 To build VSEARCH on Fedora and similar Linux distributions (RHEL, Centos etc) you'll need the following packages: autoconf, automake, bzip2-devel, gcc-c++, ghostscript, groff-base, make, zlib-devel.
 
-Instead of downloading the source distribution as a compressed archive, you could clone the repo and build it as shown below. The options to `configure` as described above are still valid.
+Instead of downloading the source distribution as a compressed archive, you could clone this repository and build it as shown below.
 
 ```
-git clone https://github.com/torognes/vsearch.git
-cd vsearch
-./autogen.sh
-./configure CFLAGS="-O2" CXXFLAGS="-O2"
-make ARFLAGS="cr"
-sudo make install
+git clone <repo-url> vsearch-plus
+cd vsearch-plus
+./scripts/build_cpp.sh
 ```
 
 **Binary distribution**: Starting with version 1.4.0, binary distribution files containing pre-compiled binaries as well as the documentation will be made available as part of each [release](https://github.com/torognes/vsearch/releases). The included executables include support for input files compressed by zlib and bzip2 (with files usually ending in `.gz` or `.bz2`).
@@ -141,7 +144,7 @@ and `zlib1.dll` files required for reading compressed input
 files. These DLL's have been obtained for mingw-w64 from the MSYS2
 platform.
 
-**Documentation:** The VSEARCH user's manual is available in the `man` folder in the form of a [man page](https://github.com/torognes/vsearch/blob/master/man/vsearch.1). A pdf version ([vsearch_manual.pdf](https://github.com/torognes/vsearch/releases/download/v2.30.5/vsearch_manual.pdf)) will be generated by `make`. To install the manpage manually, copy the `vsearch.1` file or a create a symbolic link to `vsearch.1` in a folder included in your `$MANPATH`. The manual in both formats is also available with the binary distribution. The manual in PDF form ([vsearch_manual.pdf](https://github.com/torognes/vsearch/releases/download/v2.30.5/vsearch_manual.pdf)) is also attached to the latest [release](https://github.com/torognes/vsearch/releases).
+**Documentation:** The VSEARCH user's manual is available in the `cpp/man` folder in the form of a [man page](https://github.com/torognes/vsearch/blob/master/man/vsearch.1). A pdf version ([vsearch_manual.pdf](https://github.com/torognes/vsearch/releases/download/v2.30.5/vsearch_manual.pdf)) will be generated by `make`. To install the manpage manually, copy the `vsearch.1` file or create a symbolic link to `vsearch.1` in a folder included in your `$MANPATH`. The manual in both formats is also available with the binary distribution. The manual in PDF form ([vsearch_manual.pdf](https://github.com/torognes/vsearch/releases/download/v2.30.5/vsearch_manual.pdf)) is also attached to the latest [release](https://github.com/torognes/vsearch/releases).
 
 
 ## Packages, plugins, and wrappers

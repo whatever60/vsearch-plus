@@ -109,7 +109,7 @@ This replaces stock paired behavior for these two criteria (which effectively ap
     -> ee_thresholds_pass(pair_ee, pair_len)
   ```
 - Shared low-level kernel location:
-  `src/filter.cc` -> `ee_thresholds_pass(...)`
+  `cpp/src/filter.cc` -> `ee_thresholds_pass(...)`
 
 ## Orientation note
 
@@ -145,7 +145,7 @@ Paired extension is selected by running `--fastx_uniques` with paired input:
 Example:
 
 ```bash
-./bin/vsearch \
+./scripts/vsearch-plus \
   --fastx_uniques reads_R1.fastq.gz reads_R2.fastq.gz \
   --fastaout tav_left.fasta \
   --fastaout_rev tav_right.fasta \
@@ -386,9 +386,9 @@ Low-level relationship in current code:
 
 Relevant code pointers for Step 3:
 
-- stock: `src/searchcore.cc` -> `search_acceptable_unaligned(...)`
-- shared low-level numeric kernel: `src/searchcore.cc` -> `search_unaligned_numeric_filters_pass(...)`
-- paired ext: `src/tav_extension.cc` -> `paired_unaligned_filters_pass(...)`
+- stock: `cpp/src/searchcore.cc` -> `search_acceptable_unaligned(...)`
+- shared low-level numeric kernel: `cpp/src/searchcore.cc` -> `search_unaligned_numeric_filters_pass(...)`
+- paired ext: `cpp/src/tav_extension.cc` -> `paired_unaligned_filters_pass(...)`
 
 ### Step 4: Delayed alignment batching behavior
 
@@ -496,12 +496,12 @@ Terminal gap trims are the leading and trailing gap runs from each end-alignment
 
 Relevant code pointers for Step 6:
 
-- stock: `src/searchcore.cc` -> `search_acceptable_aligned(...)`
-- shared low-level metric kernel: `src/searchcore.cc` -> `search_aligned_compute_identity_metrics(...)`
-- shared low-level threshold kernel: `src/searchcore.cc` -> `search_aligned_threshold_filters_pass(...)`
-- stock terminal-gap trimming: `src/searchcore.cc` -> `align_trim(...)`
-- paired ext: `src/tav_extension.cc` -> `paired_aligned_filters_pass(...)`
-- paired per-end alignment backend feeding these metrics: `src/tav_extension.cc` -> `align_one_end_stock_style(...)`
+- stock: `cpp/src/searchcore.cc` -> `search_acceptable_aligned(...)`
+- shared low-level metric kernel: `cpp/src/searchcore.cc` -> `search_aligned_compute_identity_metrics(...)`
+- shared low-level threshold kernel: `cpp/src/searchcore.cc` -> `search_aligned_threshold_filters_pass(...)`
+- stock terminal-gap trimming: `cpp/src/searchcore.cc` -> `align_trim(...)`
+- paired ext: `cpp/src/tav_extension.cc` -> `paired_aligned_filters_pass(...)`
+- paired per-end alignment backend feeding these metrics: `cpp/src/tav_extension.cc` -> `align_one_end_stock_style(...)`
 
 ### Step 7: UNOISE skew-beta acceptance rule
 
@@ -557,12 +557,12 @@ Low-level ext control flow details (`tav_cluster_unoise` main loop):
 
 Relevant code pointers for Step 8:
 
-- paired ext orchestration: `src/tav_extension.cc` -> `tav_cluster_unoise(...)`
+- paired ext orchestration: `cpp/src/tav_extension.cc` -> `tav_cluster_unoise(...)`
   - `process_delayed` lambda (weak-hit bookkeeping + early stop)
   - candidate loop guards using `maxaccepts_effective`/`maxrejects_effective`
 - stock counterpart behavior:
-  - `src/searchcore.cc` -> `align_delayed(...)`
-  - `src/searchcore.cc` -> `search_acceptable_aligned(...)`
+  - `cpp/src/searchcore.cc` -> `align_delayed(...)`
+  - `cpp/src/searchcore.cc` -> `search_acceptable_aligned(...)`
 
 ### Step 9: Best-hit selection and centroid update
 
@@ -602,7 +602,7 @@ Extension mechanism: centroid concept lifted from single sequence to paired sequ
 ## Example paired command
 
 ```bash
-./bin/vsearch \
+./scripts/vsearch-plus \
   --cluster_unoise uniques_r1.fasta uniques_r2.fasta \
   --centroids denoised_r1.fasta \
   --fastaout_rev denoised_r2.fasta \
@@ -884,7 +884,7 @@ Extension mechanism: paired outputs carry more metrics than stock because the pa
 ## Example paired command
 
 ```bash
-./bin/vsearch \
+./scripts/vsearch-plus \
   --uchime3_denovo denoised_r1.fasta denoised_r2.fasta \
   --tabbedout chim_report.tsv \
   --uchimeout chim_uchime.tsv \
@@ -1409,7 +1409,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 ## Why Java launcher + Java core
 
 - The classifier core is Java (`PairedClassifierMain`, `PairedNaiveBayesClassifier`) because it directly reuses stock RDP Java internals.
-- The top-level `rdp_tav_taxonomy` command now delegates to a Java launcher for:
+- The top-level `scripts/vsearch-plus-rdp-tav` command now delegates to a Java launcher for:
   - resolving RDP jar/model paths from `manifest.json`
   - compiling local extension Java sources
   - constructing Java classpath/JVM options consistently
@@ -1418,7 +1418,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 ## Command surface
 
 ```bash
-./rdp_tav_taxonomy \
+./scripts/vsearch-plus-rdp-tav \
   --input tav_left.fa \
   --input2 tav_right.fa \
   --output tav_taxonomy.tsv
@@ -1427,7 +1427,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 Interleaved mode:
 
 ```bash
-./rdp_tav_taxonomy \
+./scripts/vsearch-plus-rdp-tav \
   --input tav_interleaved.fa \
   --interleaved \
   --output tav_taxonomy.tsv

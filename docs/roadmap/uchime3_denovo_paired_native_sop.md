@@ -6,19 +6,19 @@ It is based on:
 
 - `docs/parity/uchime3_denovo_paired_parity.md`
 - `docs/callstacks/uchime3_denovo.txt`
-- `src/chimera.cc`
-- `src/searchcore.cc`
-- `src/searchcore_paired.cc`
-- `src/dbindex_paired.cc`
+- `cpp/src/chimera.cc`
+- `cpp/src/searchcore.cc`
+- `cpp/src/searchcore_paired.cc`
+- `cpp/src/dbindex_paired.cc`
 
 ## Current Status
 
 - Paired CLI routing in `cmd_chimera()` now splits cleanly:
   - paired `--uchime3_denovo` input is routed to `uchime3_denovo_paired()`
   - single-end input is routed to stock `chimera()`
-- The native paired implementation now lives in `src/chimera_paired.cc`.
+- The native paired implementation now lives in `cpp/src/chimera_paired.cc`.
   - the long-term paired engine is no longer `tav_uchime3_denovo()`
-  - the paired command path now follows the stock `src/chimera.cc` structure:
+  - the paired command path now follows the stock `cpp/src/chimera.cc` structure:
     - `query_init_paired`
     - `query_exit_paired`
     - `partition_query_paired`
@@ -29,10 +29,10 @@ It is based on:
     - `chimera_threads_run_paired`
     - `uchime3_denovo_paired`
 - The paired engine reuses the shared paired search/index wheels directly:
-  - `src/searchcore_paired.cc`
-  - `src/dbindex_paired.cc`
+  - `cpp/src/searchcore_paired.cc`
+  - `cpp/src/dbindex_paired.cc`
 - The stock parent-selection primitive is now shared directly:
-  - `select_best_two_parents_from_match_matrix(...)` is declared in `src/chimera.h`
+  - `select_best_two_parents_from_match_matrix(...)` is declared in `cpp/src/chimera.h`
   - both stock `find_best_parents()` and paired `find_best_parents_paired()` call it
 - Full build passes with `make -C src -j8`.
 - Native paired smoke tests now pass for:
@@ -102,9 +102,9 @@ Duplicate stock modules that sit on the `uchime3_denovo` callstack and need pair
 
 Target module mapping:
 
-- `src/chimera.cc` -> `src/chimera_paired.cc`
-- shared `src/searchcore.cc` paired search pieces -> `src/searchcore_paired.cc`
-- shared `src/dbindex.cc` paired index surface -> `src/dbindex_paired.cc`
+- `cpp/src/chimera.cc` -> `cpp/src/chimera_paired.cc`
+- shared `cpp/src/searchcore.cc` paired search pieces -> `cpp/src/searchcore_paired.cc`
+- shared `cpp/src/dbindex.cc` paired index surface -> `cpp/src/dbindex_paired.cc`
 
 Do not treat the now-removed legacy `tav_extension.cc` path as the final native location for paired `uchime3_denovo`.
 It was a semantic reference and temporary implementation source, not the end-state architecture.
@@ -149,17 +149,17 @@ For `uchime3_denovo`, the most important reuse boundary is the search/index laye
 
 Shared pieces already completed:
 
-- `src/searchcore_paired.cc`
+- `cpp/src/searchcore_paired.cc`
   - paired top-score screening
   - paired unaligned/aligned filters
   - paired delayed alignment path
   - stock-shaped paired hit structs and search state
-- `src/dbindex_paired.cc`
+- `cpp/src/dbindex_paired.cc`
   - paired k-mer index preparation
   - paired dense mapping/count/bitmap accessors
   - paired incremental insertion for denovo growth
 
-So the native paired `uchime3_denovo` port should concentrate on the stock `src/chimera.cc` wrapper/orchestration layer:
+So the native paired `uchime3_denovo` port should concentrate on the stock `cpp/src/chimera.cc` wrapper/orchestration layer:
 
 - paired input loading
 - paired partitioning

@@ -7,13 +7,13 @@ This module performs taxonomy assignment for TAV sequences as native paired-end 
 1. Download or refresh RDP assets:
 
 ```bash
-python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
+./scripts/vsearch-plus-rdp-download --output-root data/rdp_classifier
 ```
 
 2. Run native paired classification from split paired inputs:
 
 ```bash
-./rdp_tav_taxonomy \
+./scripts/vsearch-plus-rdp-tav \
   --input data/real_out2/tav_left.fa \
   --input2 data/real_out2/tav_right.fa \
   --output data/real_out2/tav_taxonomy_native.tsv \
@@ -26,7 +26,7 @@ python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
 3. Optional interleaved mode:
 
 ```bash
-./rdp_tav_taxonomy \
+./scripts/vsearch-plus-rdp-tav \
   --input interleaved_tav.fa \
   --interleaved \
   --output tav_taxonomy_native.tsv

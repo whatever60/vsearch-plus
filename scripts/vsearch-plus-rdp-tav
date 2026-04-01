@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-launcher_src="$repo_root/java/src/org/vsearchplus/rdp/RdpTavTaxonomyMain.java"
-launcher_dir="$repo_root/java/build/launcher_classes"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+launcher_src="$repo_root/java/src/main/java/org/vsearchplus/rdp/RdpTavTaxonomyMain.java"
+launcher_dir="$repo_root/build/java/launcher_classes"
 launcher_class="$launcher_dir/org/vsearchplus/rdp/RdpTavTaxonomyMain.class"
 bootstrap_javac="${JAVAC_BIN:-javac}"
 bootstrap_java="${JAVA_BIN:-java}"

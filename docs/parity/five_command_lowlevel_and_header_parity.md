@@ -30,7 +30,7 @@ Representative input IDs:
 | Command | Stock multicore | Ext multicore | Stock SIMD NW + LMA fallback | Ext SIMD NW + LMA fallback | Why in ext |
 |---|---|---|---|---|---|
 | `fastq_filter` | No (single stream) | No | N/A (no NW alignment path) | N/A | Stock mode (`--reverse`) remains on stock path; extension mode adds paired input/output CLI conventions and pair-level EE threshold evaluation. |
-| `fastx_uniques` | No (single-thread derep path) | No | N/A (no NW alignment path) | N/A | Paired mode now runs through native `src/derep_paired.cc`, and the operation is still counting/aggregation only. |
+| `fastx_uniques` | No (single-thread derep path) | No | N/A (no NW alignment path) | N/A | Paired mode now runs through native `cpp/src/derep_paired.cc`, and the operation is still counting/aggregation only. |
 | `cluster_unoise` | Yes (`cluster.cc` thread workers) | Yes (`cluster_paired.cc` worker/reconciliation path) | Yes (`search16` SIMD first, LMA fallback on overflow) | Yes (`search16` SIMD first, LMA fallback on overflow) | Paired mode now runs through a native stock-shaped engine in `cluster_paired.cc`; like stock `cluster.cc`, this path aligns candidates inline with `search16(..., 1, ...)` rather than using delayed `MAXDELAYED` batches. |
 | `uchime3_denovo` | Yes (`chimera.cc` worker threads; denovo forces one worker) | Yes (`chimera_paired.cc` mirrors the stock threaded driver shape) | Yes (candidate/full-query alignments use SIMD path then LMA fallback) | Yes (paired part-screening uses shared paired dbindex counts/bitmaps; full-query paired alignments use SIMD-first with stock overflow fallback) | Paired mode now runs through a native stock-shaped engine in `chimera_paired.cc`, with shared stock parent-selection logic and paired-native output handling. |
 | `usearch_global` | Yes (`search.cc` worker threads) | Yes (`search_paired.cc` worker threads) | Yes (`searchcore.cc` uses `search16` with LMA fallback) | Yes (`search16` SIMD first, LMA fallback on overflow, per end) | Paired mode now runs through a native stock-shaped engine in `search_paired.cc`, reusing the shared paired search core. |
@@ -54,10 +54,10 @@ Representative input IDs:
 - Engineered in ext/native paired layers:
   - paired candidate enumeration, paired filtering, paired output writing, and paired derep key formation where single-end stock code has no direct analogue.
 - Native paired wrappers now exist for the core stock owners:
-  - `src/derep_paired.cc`
-  - `src/cluster_paired.cc`
-  - `src/chimera_paired.cc`
-  - `src/search_paired.cc`
+  - `cpp/src/derep_paired.cc`
+  - `cpp/src/cluster_paired.cc`
+  - `cpp/src/chimera_paired.cc`
+  - `cpp/src/search_paired.cc`
 
 ## 2) Output header naming parity (with real IDs)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download the latest RDP Classifier release and pretrained assets from SourceForge."""
+"""Download the latest RDP Classifier release and pretrained assets."""
 
 import argparse
 import json
@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 BASE_URL = "https://sourceforge.net/projects/rdp-classifier/files/"
 CLASSIFIER_PAGE_URL = BASE_URL + "rdp-classifier/"
 TRAINING_PAGE_URL = BASE_URL + "RDP_Classifier_TrainingData/"
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def fetch_html(url: str) -> str:
@@ -106,8 +107,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output-root",
-        default="data/third_party/rdp_classifier",
-        help="Root output directory for downloaded/extracted files.",
+        help="Root output directory for downloaded/extracted files. Relative paths are resolved from the repository root.",
     )
     parser.add_argument(
         "--force",
@@ -117,10 +117,30 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def resolve_output_root(output_root: str | None) -> Path:
+    """Resolve the requested output root against the repository root."""
+    if output_root is None:
+        return REPO_ROOT / "data" / "rdp_classifier"
+
+    path = Path(output_root)
+    if path.is_absolute():
+        return path
+    return REPO_ROOT / path
+
+
+def manifest_path_text(path: Path) -> str:
+    """Render a manifest path relative to the repository root when possible."""
+    resolved_path = path.resolve()
+    resolved_repo_root = REPO_ROOT.resolve()
+    if resolved_path.is_relative_to(resolved_repo_root):
+        return resolved_path.relative_to(resolved_repo_root).as_posix()
+    return str(resolved_path)
+
+
 def main() -> None:
     """Entrypoint for downloading and extracting latest RDP assets."""
     args = parse_args()
-    root_dir = Path(args.output_root)
+    root_dir = resolve_output_root(args.output_root).resolve()
     downloads_dir = root_dir / "downloads"
     extracted_dir = root_dir / "extracted"
     downloads_dir.mkdir(parents=True, exist_ok=True)
@@ -165,13 +185,13 @@ def main() -> None:
         "raw_training_zip": raw_training_zip_name,
         "qiime_training_zip": qiime_training_zip_name,
         "paths": {
-            "root": str(root_dir),
-            "downloads": str(downloads_dir),
-            "extracted": str(extracted_dir),
-            "classifier": str(classifier_extract_dir),
-            "pretrained_data": str(pretrained_extract_dir),
-            "raw_training": str(raw_training_extract_dir),
-            "qiime_training": str(qiime_training_extract_dir),
+            "root": manifest_path_text(root_dir),
+            "downloads": manifest_path_text(downloads_dir),
+            "extracted": manifest_path_text(extracted_dir),
+            "classifier": manifest_path_text(classifier_extract_dir),
+            "pretrained_data": manifest_path_text(pretrained_extract_dir),
+            "raw_training": manifest_path_text(raw_training_extract_dir),
+            "qiime_training": manifest_path_text(qiime_training_extract_dir),
         },
         "urls": {
             "classifier": classifier_url,

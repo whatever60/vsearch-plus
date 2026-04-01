@@ -126,9 +126,9 @@ Low-level relationship in current code:
 
 Relevant code pointers for Step 3:
 
-- stock: `src/searchcore.cc` -> `search_acceptable_unaligned(...)`
-- shared low-level numeric kernel: `src/searchcore.cc` -> `search_unaligned_numeric_filters_pass(...)`
-- paired native: `src/searchcore_paired.cc` -> `search_acceptable_unaligned_paired(...)`
+- stock: `cpp/src/searchcore.cc` -> `search_acceptable_unaligned(...)`
+- shared low-level numeric kernel: `cpp/src/searchcore.cc` -> `search_unaligned_numeric_filters_pass(...)`
+- paired native: `cpp/src/searchcore_paired.cc` -> `search_acceptable_unaligned_paired(...)`
 
 ### Step 4: Inline alignment behavior inside the cluster loop
 
@@ -239,12 +239,12 @@ Terminal gap trims are the leading and trailing gap runs from each end-alignment
 
 Relevant code pointers for Step 6:
 
-- stock: `src/searchcore.cc` -> `search_acceptable_aligned(...)`
-- shared low-level metric kernel: `src/searchcore.cc` -> `search_aligned_compute_identity_metrics(...)`
-- shared low-level threshold kernel: `src/searchcore.cc` -> `search_aligned_threshold_filters_pass(...)`
-- stock terminal-gap trimming: `src/searchcore.cc` -> `align_trim(...)`
-- paired native aligned filter: `src/searchcore_paired.cc` -> `search_acceptable_aligned_paired(...)`
-- paired inline alignment owner: `src/cluster_paired.cc`
+- stock: `cpp/src/searchcore.cc` -> `search_acceptable_aligned(...)`
+- shared low-level metric kernel: `cpp/src/searchcore.cc` -> `search_aligned_compute_identity_metrics(...)`
+- shared low-level threshold kernel: `cpp/src/searchcore.cc` -> `search_aligned_threshold_filters_pass(...)`
+- stock terminal-gap trimming: `cpp/src/searchcore.cc` -> `align_trim(...)`
+- paired native aligned filter: `cpp/src/searchcore_paired.cc` -> `search_acceptable_aligned_paired(...)`
+- paired inline alignment owner: `cpp/src/cluster_paired.cc`
 
 ### Step 7: UNOISE skew-beta acceptance rule
 
@@ -285,11 +285,11 @@ Low-level paired control flow details (`cluster_paired(...)` main loop):
 
 Relevant code pointers for Step 8:
 
-- paired native orchestration: `src/cluster_paired.cc` -> `cluster_paired(...)`
-- paired aligned filter logic: `src/searchcore_paired.cc` -> `search_acceptable_aligned_paired(...)`
+- paired native orchestration: `cpp/src/cluster_paired.cc` -> `cluster_paired(...)`
+- paired aligned filter logic: `cpp/src/searchcore_paired.cc` -> `search_acceptable_aligned_paired(...)`
 - stock counterpart behavior:
-  - `src/cluster.cc`
-  - `src/searchcore.cc` -> `search_acceptable_aligned(...)`
+  - `cpp/src/cluster.cc`
+  - `cpp/src/searchcore.cc` -> `search_acceptable_aligned(...)`
 
 ### Step 9: Best-hit selection and centroid update
 
@@ -329,7 +329,7 @@ Native mechanism: centroid concept is lifted from a single sequence to a paired 
 ## Example paired command
 
 ```bash
-./bin/vsearch \
+./scripts/vsearch-plus \
   --cluster_unoise uniques_r1.fasta uniques_r2.fasta \
   --centroids denoised_r1.fasta \
   --fastaout_rev denoised_r2.fasta \

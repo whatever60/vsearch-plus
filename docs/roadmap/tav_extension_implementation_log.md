@@ -29,7 +29,7 @@
 ## 2026-03-24 - Initial integration into VSEARCH source tree
 
 ### Scope implemented in this pass
-- Added a new VSEARCH extension module in `vsearch/src/tav_extension.cc` and `vsearch/src/tav_extension.h`.
+- Added a new VSEARCH extension module in `cpp/src/tav_extension.cc` and `cpp/src/tav_extension.h`.
 - Wired paired-end-native TAV logic into existing command flow without replacing existing single-end behavior.
 - Reused VSEARCH FASTX parsing (`fastx_open`, `fastx_next`), reverse-complement (`reverse_complement`), and FASTA writing (`fasta_print_general`) primitives.
 
@@ -87,7 +87,7 @@
 ## 2026-03-24 - Build, smoke tests, and real-data subsample
 
 ### Build status
-- VSEARCH builds successfully with the new TAV extension code integrated into `bin/vsearch`.
+- VSEARCH builds successfully with the new TAV extension code integrated into `build/cpp/bin/vsearch`.
 
 ### Synthetic validation status
 - Built a paired synthetic dataset and executed all requested command stages end-to-end:

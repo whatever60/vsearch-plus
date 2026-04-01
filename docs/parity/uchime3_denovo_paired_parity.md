@@ -270,7 +270,7 @@ Native mechanism: paired outputs carry more metrics than stock because the paire
 ## Example paired command
 
 ```bash
-./bin/vsearch \
+./scripts/vsearch-plus \
   --uchime3_denovo denoised_r1.fasta denoised_r2.fasta \
   --tabbedout chim_report.tsv \
   --uchimeout chim_uchime.tsv \

@@ -6,7 +6,7 @@ Status legend:
 - `Needs closer stock parity`: there is a clear stock counterpart, but the paired implementation still diverges more than necessary.
 - `Should be deleted/refolded`: should be inlined, merged into a stock-shaped function, or moved to a more appropriate shared module.
 
-## `src/searchcore_paired.cc` / `src/searchcore_paired.h`
+## `cpp/src/searchcore_paired.cc` / `cpp/src/searchcore_paired.h`
 
 | Function / struct | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |
@@ -30,7 +30,7 @@ Status legend:
 | `search_findbest2_bysize_paired` | `search_findbest2_bysize` | Good | Inherits the stock-like size comparator and direct abundance lookup. |
 | `search_joinhits_paired` | `search_joinhits` | Good | Stock-shaped end-to-end: keep accepted/weak hits, free rejected alignments, sort in stock order. |
 
-## `src/cluster_paired.cc` / `src/cluster_paired.h`
+## `cpp/src/cluster_paired.cc` / `cpp/src/cluster_paired.h`
 
 | Function / struct | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |

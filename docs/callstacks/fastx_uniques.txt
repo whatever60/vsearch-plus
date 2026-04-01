@@ -78,6 +78,6 @@ paired native path
 
 Ownership notes
 
-- Stock owner: `src/derep.cc`
-- Native paired owner: `src/derep_paired.cc`
+- Stock owner: `cpp/src/derep.cc`
+- Native paired owner: `cpp/src/derep_paired.cc`
 - Legacy `tav_fastx_uniques(...)` is no longer on the CLI path and is no longer part of the build.

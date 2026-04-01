@@ -6,14 +6,14 @@ Status legend:
 - `Needs closer stock parity`: there is a clear stock counterpart, but the paired implementation still diverges more than necessary.
 - `Should be deleted/refolded`: should be folded into a stock-shaped paired module or removed because a shared paired primitive already covers its job.
 
-## `src/chimera.cc` / `src/chimera.h`
+## `cpp/src/chimera.cc` / `cpp/src/chimera.h`
 
 | Function / declaration | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |
 | `Status` enum | `Status` enum | Good | Shared stock status type used cleanly by both stock and paired chimera modules. |
 | `select_best_two_parents_from_match_matrix(...)` declaration | `select_best_two_parents_from_match_matrix(...)` | Good | Lets paired code reuse the exact stock parent-winner primitive. |
 
-## `src/dbindex_paired.cc` / `src/dbindex_paired.h`
+## `cpp/src/dbindex_paired.cc` / `cpp/src/dbindex_paired.h`
 
 | Function / object | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |
@@ -27,13 +27,13 @@ Status legend:
 | `dbindex_getcount_paired` | `dbindex_getcount` | Good | Reused by paired per-part candidate scoring. |
 | `dbindex_free_paired` | `dbindex_free` | Good | Reused in paired teardown. |
 
-## `src/searchcore_paired.cc` / `src/searchcore_paired.h`
+## `cpp/src/searchcore_paired.cc` / `cpp/src/searchcore_paired.h`
 
 | Function / module | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |
-| paired search core and hit/search state | `src/searchcore.cc` | Good | Shared wheel already completed during paired clustering and paired `usearch_global`; reused here through paired dbindex semantics and stock primitives. |
+| paired search core and hit/search state | `cpp/src/searchcore.cc` | Good | Shared wheel already completed during paired clustering and paired `usearch_global`; reused here through paired dbindex semantics and stock primitives. |
 
-## `src/chimera_paired.cc` / `src/chimera_paired.h`
+## `cpp/src/chimera_paired.cc` / `cpp/src/chimera_paired.h`
 
 | Function / helper | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |

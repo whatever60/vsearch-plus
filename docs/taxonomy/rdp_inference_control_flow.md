@@ -18,10 +18,10 @@ Document the stock RDP inference path and where paired-end TAV logic extends it.
 
 ## Native paired TAV extension path
 
-Entrypoint: `./rdp_tav_taxonomy`
+Entrypoint: `./scripts/vsearch-plus-rdp-tav`
 
 1. Java bootstrap launcher resolves RDP jar/model paths from `manifest.json`.
-2. Java bootstrap launcher compiles and invokes the paired classifier classes in `java/src/org/vsearchplus/rdp`.
+2. Java bootstrap launcher compiles and invokes the paired classifier classes in `java/src/main/java/org/vsearchplus/rdp`.
    - Launcher accepts stock-style classify aliases for core options (`-o/-f/-c/-w/-s/-t/-g`) plus paired input args.
    - Launcher supports stock-style `-b/--bootstrap_outfile` and `-h/--hier_outfile`.
    - Metadata/biom stock options are rejected explicitly in paired mode.

@@ -6,15 +6,15 @@ It is based on:
 
 - `docs/parity/cluster_unoise_paired_parity.md`
 - `docs/callstacks/cluster_unoise.txt`
-- `src/cluster.cc`
-- `src/searchcore.cc`
+- `cpp/src/cluster.cc`
+- `cpp/src/searchcore.cc`
 
 ## Current Status
 
 - The native paired implementation lives in:
-  - `src/cluster_paired.cc`
-  - `src/searchcore_paired.cc`
-  - `src/dbindex_paired.cc`
+  - `cpp/src/cluster_paired.cc`
+  - `cpp/src/searchcore_paired.cc`
+  - `cpp/src/dbindex_paired.cc`
 - The full project currently builds with `make -C src -j8`.
 - The paired native path is past the bootstrap stage:
   - stock-shaped paired search and cluster modules are present
@@ -26,7 +26,7 @@ It is based on:
   - `clusterinfo_s_paired` retains per-end CIGAR ownership in stock style
   - both `--threads 2` and `--threads 1` paired smoke outputs now agree on the hit-case and OTU-table smoke inputs
 - A native paired smoke test has succeeded with:
-  - `./bin/vsearch --cluster_unoise .tmp_refactor_smoke/r1.fa .tmp_refactor_smoke/r2.fa --minsize 1 --fastaout .tmp_native_cluster_smoke/out_r1.fa --fastaout_rev .tmp_native_cluster_smoke/out_r2.fa --threads 2`
+  - `./scripts/vsearch-plus --cluster_unoise .tmp_refactor_smoke/r1.fa .tmp_refactor_smoke/r2.fa --minsize 1 --fastaout .tmp_native_cluster_smoke/out_r1.fa --fastaout_rev .tmp_native_cluster_smoke/out_r2.fa --threads 2`
 - A paired core-result smoke test has also succeeded with:
   - `--uc`
   - `--otutabout`
@@ -88,9 +88,9 @@ Duplicate stock source files that are on the `cluster_unoise` callstack and need
 
 Current module mapping:
 
-- `src/cluster.cc` -> `src/cluster_paired.cc`
-- `src/searchcore.cc` -> `src/searchcore_paired.cc`
-- stock dbindex layer -> `src/dbindex_paired.cc`
+- `cpp/src/cluster.cc` -> `cpp/src/cluster_paired.cc`
+- `cpp/src/searchcore.cc` -> `cpp/src/searchcore_paired.cc`
+- stock dbindex layer -> `cpp/src/dbindex_paired.cc`
 
 If more stock modules become necessary for parity, duplicate those too as `*_paired.cc`.
 
@@ -269,15 +269,15 @@ cmd_cluster
 
 ### 1. Freeze the target behavior
 
-- Treat `src/cluster.cc` and `src/searchcore.cc` as the only behavioral ground truth.
+- Treat `cpp/src/cluster.cc` and `cpp/src/searchcore.cc` as the only behavioral ground truth.
 - Treat `docs/parity/cluster_unoise_paired_parity.md` as the paired semantic contract.
 - Require every paired-only difference to be justified as a one-read to one-pair transformation.
 
 ### 2. Keep the file split aligned to stock modules
 
-- `src/cluster.cc` -> `src/cluster_paired.cc`
-- `src/searchcore.cc` -> `src/searchcore_paired.cc`
-- stock dbindex layer -> `src/dbindex_paired.cc`
+- `cpp/src/cluster.cc` -> `cpp/src/cluster_paired.cc`
+- `cpp/src/searchcore.cc` -> `cpp/src/searchcore_paired.cc`
+- stock dbindex layer -> `cpp/src/dbindex_paired.cc`
 
 Do not continue growing the now-removed legacy `tav_extension.cc` path for the final native paired `cluster_unoise` path.
 
@@ -418,8 +418,8 @@ If a difference cannot be explained by replacing one read with one synchronized 
 2. lock the stock callstack in `docs/callstacks/cluster_unoise.txt`
 3. build or clean `searchinfo_s_paired`, `hit_paired_s`, and `clusterinfo_s_paired`
 4. build or clean `dbindex_paired` so `search_topscores_paired` can stay stock-shaped
-5. port `src/searchcore.cc` to `src/searchcore_paired.cc` line by line
-6. port `src/cluster.cc` to `src/cluster_paired.cc` line by line
+5. port `cpp/src/searchcore.cc` to `cpp/src/searchcore_paired.cc` line by line
+6. port `cpp/src/cluster.cc` to `cpp/src/cluster_paired.cc` line by line
 7. port tail and output machinery last
 8. benchmark only after structural parity is in place
 
@@ -429,8 +429,8 @@ The native paired `cluster_unoise` port is only done when all of the following a
 
 - the `--threads > 1` callstack matches stock structure one to one
 - the `--threads = 1` callstack matches stock structure one to one
-- `src/searchcore_paired.cc` is stock-shaped rather than extension-shaped
-- `src/cluster_paired.cc` is stock-shaped rather than a shim into `tav_extension`
+- `cpp/src/searchcore_paired.cc` is stock-shaped rather than extension-shaped
+- `cpp/src/cluster_paired.cc` is stock-shaped rather than a shim into `tav_extension`
 - stock `db_*` accessors are reused whenever possible
 - paired `dbindex_*` closely mirrors stock `dbindex_*`
 - all paired-only differences are documented in the parity markdown

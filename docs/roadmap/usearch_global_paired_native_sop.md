@@ -6,17 +6,17 @@ It is based on:
 
 - `docs/parity/usearch_global_paired_parity.md`
 - `docs/callstacks/usearch_global.txt`
-- `src/search.cc`
-- `src/searchcore.cc`
+- `cpp/src/search.cc`
+- `cpp/src/searchcore.cc`
 
 ## Current Status
 
 - Paired CLI routing in `cmd_usearch_global()` now splits cleanly:
   - paired input is routed to `usearch_global_paired()`
   - single-end input is routed to stock `usearch_global()`
-- A stock-shaped native paired wrapper now exists in `src/search_paired.cc`.
+- A stock-shaped native paired wrapper now exists in `cpp/src/search_paired.cc`.
   - the long-term paired engine is no longer `tav_usearch_global()`
-  - the wrapper now follows the stock `src/search.cc` layout:
+  - the wrapper now follows the stock `cpp/src/search.cc` layout:
     - `search_output_results_paired`
     - `search_query_paired`
     - `search_thread_run_paired`
@@ -28,14 +28,14 @@ It is based on:
     - `search_done_paired`
     - `usearch_global_paired`
 - The shared paired search machinery is now reused directly:
-  - `src/searchcore_paired.cc`
+  - `cpp/src/searchcore_paired.cc`
     - `search_topscores_paired`
     - `search_acceptable_unaligned_paired`
     - `search_acceptable_aligned_paired`
     - `align_delayed_paired`
     - `search_onequery_paired`
     - `search_joinhits_paired`
-  - `src/dbindex_paired.cc`
+  - `cpp/src/dbindex_paired.cc`
     - `dbindex_prepare_paired`
     - `dbindex_addallsequences_paired`
     - `dbindex_addsequence_paired`
@@ -122,9 +122,9 @@ Duplicate stock modules that sit on the `usearch_global` callstack and need pair
 
 Target module mapping:
 
-- `src/search.cc` -> `src/search_paired.cc`
-- `src/searchcore.cc` -> `src/searchcore_paired.cc`
-- `src/dbindex.cc`/`src/dbindex.h` surface -> `src/dbindex_paired.cc`/`src/dbindex_paired.h`
+- `cpp/src/search.cc` -> `cpp/src/search_paired.cc`
+- `cpp/src/searchcore.cc` -> `cpp/src/searchcore_paired.cc`
+- `cpp/src/dbindex.cc`/`cpp/src/dbindex.h` surface -> `cpp/src/dbindex_paired.cc`/`cpp/src/dbindex_paired.h`
 
 Do not treat the now-removed legacy `tav_extension.cc` path as the final native location for paired `usearch_global`.
 It was a semantic reference and temporary implementation source, not the end-state architecture.
@@ -293,11 +293,11 @@ There should be no separate paired serial search architecture if we want true st
 
 ### 1. Freeze the target behavior
 
-- Treat `src/search.cc` and `src/searchcore.cc` as the only behavioral ground truth for stock `usearch_global`.
+- Treat `cpp/src/search.cc` and `cpp/src/searchcore.cc` as the only behavioral ground truth for stock `usearch_global`.
 - Treat `docs/parity/usearch_global_paired_parity.md` as the paired semantic contract.
 - Treat `docs/callstacks/usearch_global.txt` as the structural target.
 
-### 2. Build the stock-shaped paired wrapper layer in `src/search_paired.cc`
+### 2. Build the stock-shaped paired wrapper layer in `cpp/src/search_paired.cc`
 
 Implement paired analogs of the stock `search.cc` driver functions:
 

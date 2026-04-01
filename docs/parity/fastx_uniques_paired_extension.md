@@ -23,14 +23,14 @@ Paired extension is selected by running `--fastx_uniques` with paired input:
 Example:
 
 ```bash
-./bin/vsearch \
+./scripts/vsearch-plus \
   --fastx_uniques reads_R1.fastq.gz reads_R2.fastq.gz \
   --fastaout tav_left.fasta \
   --fastaout_rev tav_right.fasta \
   --tabbedout tav_catalog.tsv
 ```
 
-Without paired input (no second positional input and no `--interleaved`), command dispatch remains on stock derep behavior in `src/derep.cc`.
+Without paired input (no second positional input and no `--interleaved`), command dispatch remains on stock derep behavior in `cpp/src/derep.cc`.
 
 ### Input expectations
 
@@ -144,8 +144,8 @@ Abundance aggregation uses the same size-input concept as stock (`--sizein`-awar
 
 ## 4) Ownership status
 
-- Stock single-end owner: `src/derep.cc`
-- Native paired owner: `src/derep_paired.cc`
+- Stock single-end owner: `cpp/src/derep.cc`
+- Native paired owner: `cpp/src/derep_paired.cc`
 - Legacy `tav_fastx_uniques(...)` is retired from the CLI path and is no longer part of the build.
 
 ## 5) Practical guidance

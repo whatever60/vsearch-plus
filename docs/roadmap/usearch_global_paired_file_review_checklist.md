@@ -6,7 +6,7 @@ Status legend:
 - `Needs closer stock parity`: there is a clear stock counterpart, but the paired implementation still diverges more than necessary.
 - `Should be deleted/refolded`: should be folded into a stock-shaped paired module or removed because a shared paired primitive already covers its job.
 
-## `src/searchcore_paired.cc` / `src/searchcore_paired.h`
+## `cpp/src/searchcore_paired.cc` / `cpp/src/searchcore_paired.h`
 
 | Function / struct | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |
@@ -31,7 +31,7 @@ Status legend:
 | `search_findbest2_bysize_paired` | `search_findbest2_bysize` | Good | Not central for `usearch_global`, but already shared and stock-shaped. |
 | `search_joinhits_paired` | `search_joinhits` | Good | Stock-shaped paired hit-retention and sort path used directly by the native wrapper. |
 
-## `src/dbindex_paired.cc` / `src/dbindex_paired.h`
+## `cpp/src/dbindex_paired.cc` / `cpp/src/dbindex_paired.h`
 
 | Function / object | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |
@@ -45,7 +45,7 @@ Status legend:
 | `dbindex_getcount_paired` | `dbindex_getcount` | Good | Reused by `search_topscores_paired`. |
 | `dbindex_free_paired` | `dbindex_free` | Good | Reused in `search_done_paired`. |
 
-## `src/search_paired.cc` / `src/search.h`
+## `cpp/src/search_paired.cc` / `cpp/src/search.h`
 
 | Function / helper | Stock counterpart | Status | Review note |
 | :-- | :-- | :-- | :-- |

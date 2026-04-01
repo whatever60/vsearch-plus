@@ -103,7 +103,7 @@ This replaces stock paired behavior for these two criteria (which effectively ap
     -> ee_thresholds_pass(pair_ee, pair_len)
   ```
 - Shared low-level kernel location:
-  `src/filter.cc` -> `ee_thresholds_pass(...)`
+  `cpp/src/filter.cc` -> `ee_thresholds_pass(...)`
 
 ## Orientation note
 
