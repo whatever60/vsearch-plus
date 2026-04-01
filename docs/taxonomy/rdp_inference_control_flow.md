@@ -18,12 +18,12 @@ Document the stock RDP inference path and where paired-end TAV logic extends it.
 
 ## Native paired TAV extension path
 
-Entrypoint: `python3 rdp_tav_taxonomy.py`
+Entrypoint: `./rdp_tav_taxonomy`
 
-1. Python wrapper resolves RDP jar/model paths from manifest.
-2. Python wrapper compiles and invokes Java extension classes in `java/src/org/vsearchplus/rdp`.
-   - Wrapper accepts stock-style classify aliases for core options (`-o/-f/-c/-w/-s/-t/-g`) plus paired input args.
-   - Wrapper supports stock-style `-b/--bootstrap_outfile` and `-h/--hier_outfile`.
+1. Java bootstrap launcher resolves RDP jar/model paths from `manifest.json`.
+2. Java bootstrap launcher compiles and invokes the paired classifier classes in `java/src/org/vsearchplus/rdp`.
+   - Launcher accepts stock-style classify aliases for core options (`-o/-f/-c/-w/-s/-t/-g`) plus paired input args.
+   - Launcher supports stock-style `-b/--bootstrap_outfile` and `-h/--hier_outfile`.
    - Metadata/biom stock options are rejected explicitly in paired mode.
 3. Java `PairedClassifierMain` reads paired records from:
    - split inputs (`--input`, `--input2`) or
@@ -50,7 +50,7 @@ New extension code:
 
 - `PairedNaiveBayesClassifier` (paired likelihood/bootstrap core)
 - `PairedClassifierMain` (paired IO and CLI bridge)
-- Python wrapper that builds/runs Java extension in-project
+- `RdpTavTaxonomyMain` (Java launcher that resolves assets and compiles/runs the paired extension)
 
 ## Output semantics
 

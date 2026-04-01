@@ -1,6 +1,6 @@
-# Paired `usearch_global` Parity (Stock VSEARCH vs Extension)
+# Paired `usearch_global` Parity (Stock VSEARCH vs Native Paired)
 
-This document captures parity status between stock `vsearch --usearch_global` and the paired-end extension path in this workspace.
+This document captures parity status between stock `vsearch --usearch_global` and the native paired implementation in this workspace.
 
 ## Scope and intent
 
@@ -46,7 +46,7 @@ This document captures parity status between stock `vsearch --usearch_global` an
 
 Stock implementation: `cmd_usearch_global()` routes non-paired runs to `usearch_global()`. It requires `--db`, requires `--id` in `[0,1]`, and accepts the full stock output set (including SAM/segment/alignment-rich outputs).
 
-Paired extension implementation: `cmd_usearch_global()` routes paired input (`R2` positional input or `--interleaved`) to `tav_usearch_global()`. It enforces:
+Paired native implementation: `cmd_usearch_global()` routes paired input (`R2` positional input or `--interleaved`) to `usearch_global_paired()`. It enforces:
 - `--strand plus` only
 - no `--fastapairs`, `--qsegout`, `--tsegout`, `--samout`, `--lcaout`
 - no custom `--userfields`
@@ -54,50 +54,50 @@ Paired extension implementation: `cmd_usearch_global()` routes paired input (`R2
 - at least one paired-supported output
 - `--db` and valid `--id`
 
-Extension mechanism: paired mode is a dedicated execution path with explicit CLI constraints.
+Native mechanism: paired mode is a dedicated execution path with explicit CLI constraints.
 
 ### Step 2: Database ingestion and target construction
 
 Stock implementation: `search_prep()` loads DB from UDB or FASTA/FASTQ, applies optional DB masking (`dust`/`hardmask`), then builds `dbindex` for k-mer lookup (`dbindex_prepare`, `dbindex_addallsequences`).
 
-Paired extension implementation: `tav_usearch_global()` loads paired targets from:
+Paired native implementation: `search_prep_paired()` loads paired targets from:
 - interleaved `--db` (left/right alternating), or
 - split `--db` (left) + `--db2` (right)
-Catalog TSV input is rejected. Each DB pair is converted to one `TavRecord`:
+Catalog TSV input is rejected. Each DB pair is converted to one paired record:
 - anchor length `anchor_len = min(left_len, right_len)` (or bounded by `--fastq_trunclen` via `get_anchor_len`)
 - min/max length filtering with `--filter any|both`
 - DB masking on both ends (`opt_dbmask`)
 - separate R1 and R2 headers preserved, while the first whitespace-delimited token must match between ends
 - abundance taken from left record (warning on mismatch)
 
-Extension mechanism: one paired target record replaces one single-sequence target.
+Native mechanism: one paired target record replaces one single-sequence target.
 
 ### Step 3: Query ingestion and paired synchronization
 
 Stock implementation: each query sequence is read once (or twice with reverse strand search when enabled), optionally query-masked, then searched.
 
-Paired extension implementation: split queries (`R1`/`R2`) are read synchronously, or interleaved queries are consumed as `(R1,R2,R1,R2,...)`. For each pair:
+Paired native implementation: split queries (`R1`/`R2`) are read synchronously, or interleaved queries are consumed as `(R1,R2,R1,R2,...)`. For each pair:
 - the first whitespace-delimited token of the R1 and R2 headers must match
 - this header-pair check is independent of `--notrunclabels`
 - right read is kept in native R2 orientation
 - both ends are truncated to `anchor_len`
 - query masking (`opt_qmask`) is applied on both ends
 - abundance is `max(fwd_abundance, 1)`
-- query unit becomes one paired `TavRecord`
+- query unit becomes one paired record
 
-Extension mechanism: paired search operates directly on native-orientation left/right anchors.
+Native mechanism: paired search operates directly on native-orientation left/right anchors.
 
 ### Step 4: K-mer candidate scoring and top-hit preselection
 
 Stock implementation: `search_onequery()` extracts unique query k-mers (`unique_count`), accumulates DB k-mer hit counts through `dbindex`, and keeps top candidates via min-heap (`search_topscores`).
 
-Paired extension implementation:
+Paired native implementation:
 - builds paired postings once (`left_postings`, `right_postings`) from DB k-mers
 - for each query, computes `db_kmer_scores[i] = left_overlap_i + right_overlap_i`
 - keeps candidates with `score >= min(opt_minwordmatches, qk_left + qk_right)`
 - uses the same heap comparator behavior (higher k-mer count first, then shorter target length, then earlier index)
 
-Extension mechanism: stock k-mer backbone is preserved with additive left+right evidence.
+Native mechanism: stock k-mer backbone is preserved with additive left+right evidence.
 
 Low-level relationship in current code:
 
@@ -119,11 +119,13 @@ Low-level relationship in current code:
 
 Stock implementation: candidate loop applies `search_acceptable_unaligned()`, pushes survivors into delayed alignment batches (`MAXDELAYED`), and stops by `maxaccepts/maxrejects` limits.
 
-Paired extension implementation: mirrors this control flow with:
-- `paired_unaligned_filters_pass()` (paired analog of stock unaligned filters:
+Paired native implementation: mirrors this control flow with:
+- `search_acceptable_unaligned_paired()` (paired analog of stock unaligned filters:
   `maxqsize`, `mintsize`, `minsizeratio`, `maxsizeratio`, `minqt`, `maxqt`, `minsl`, `maxsl`, `idprefix`, `idsuffix`, `self`, `selfid`)
   - `idprefix` is checked on R1 prefix only
-  - `idsuffix` is checked on R2 prefix only (merged-suffix analog under paired orientation contract)
+  - `idsuffix` is checked on the R2 prefix only
+  - `self` compares the query header against the target R1 header
+  - `selfid` requires both ends to be sequence-identical
 - pending batch processed at `MAXDELAYED` or loop end
 - effective limits:
   - `maxaccepts_effective`
@@ -138,14 +140,14 @@ Low-level relationship in current code:
     -> search_unaligned_numeric_filters_pass(...)
     -> single-end idprefix/idsuffix/self/selfid checks
   ```
-- Paired Step 5 call stack:
+  - Paired Step 5 call stack:
   ```text
-  paired_unaligned_filters_pass(...)
+  search_acceptable_unaligned_paired(...)
     -> search_unaligned_numeric_filters_pass(...)
     -> paired idprefix(R1 prefix)/idsuffix(R2 prefix)/self/selfid checks
   ```
 
-Extension mechanism: delayed-batch semantics are kept, but filters evaluate paired totals/per-end equivalents.
+Native mechanism: delayed-batch semantics are kept, but filters evaluate paired totals/per-end equivalents.
 
 ### Step 6: Alignment, aligned filters, and accept/weak/reject assignment
 
@@ -154,7 +156,7 @@ Stock implementation: delayed hits are globally aligned (`search16` SIMD batch, 
 - weak if aligned-filters pass but `id < 100 * opt_id`
 - rejected otherwise
 
-Paired extension implementation: pending hits are aligned in per-end batches with `align_end_batch_stock_style()` (`search16` SIMD first, linear-memory fallback on overflow), then aggregated:
+Paired native implementation: pending hits are aligned in `align_delayed_paired()` using per-end `search16` batches (`search16` SIMD first, linear-memory fallback on overflow), then aggregated:
 - mismatches/gaps/columns/indels summed across ends
 - identity metrics `id0..id4` computed and selected by `opt_iddef`
 - `mid` and coverage metrics computed on combined totals
@@ -162,7 +164,7 @@ Paired extension implementation: pending hits are aligned in per-end batches wit
   `weak_id`, `maxsubs`, `maxgaps`, `mincols`, `leftjust`, `rightjust`, `query_cov`, `target_cov`, `maxid`, `mid`, `maxdiffs`
 - final accepted/weak/rejected decision uses the same `opt_id` cutoff semantics as stock
 
-Extension mechanism: accept/weak/reject logic is stock-equivalent after two-end stat aggregation.
+Native mechanism: accept/weak/reject logic is stock-equivalent after two-end stat aggregation.
 
 Low-level relationship in current code:
 
@@ -175,8 +177,9 @@ Low-level relationship in current code:
   ```
 - Paired Step 6 call stack:
   ```text
-  paired_aligned_filters_pass(...)
+  align_delayed_paired(...)
     -> aggregate R1/R2 alignment totals
+  search_acceptable_aligned_paired(...)
     -> search_aligned_compute_identity_metrics(...)
     -> search_aligned_threshold_filters_pass(...)
     -> paired accept/weak labeling
@@ -191,20 +194,20 @@ Stock implementation: `search_joinhits()` keeps only accepted/weak hits and sort
 4. lower target index
 Reporting applies `--maxhits`, `--top_hits_only`, and `--uc_allhits`.
 
-Paired extension implementation: same retention and ordering semantics over `TavHit`, then:
+Paired native implementation: same retention and ordering semantics over `hit_paired_s`, then:
 - `toreport = min(opt_maxhits, report_hits.size())`
 - `--top_hits_only` truncates below top identity
 - UC output respects `--uc_allhits`
 
-Extension mechanism: stock ranking semantics preserved on paired hit objects.
+Native mechanism: stock ranking semantics preserved on paired hit objects.
 
 ### Step 8: Per-query output emission and match accounting
 
 Stock implementation: writes configured outputs (`alnout`, `userout`, `blast6`, `uc`, etc.); query is matched if any kept hit exists; `dbmatched[target]` increments for every accepted/weak hit by query abundance (`--sizein`) or by 1.
 
-Paired extension implementation:
+Paired native implementation:
 - matched query if `report_hits` non-empty; unmatched otherwise
-- `dbmatched_abundance[target]` increments for every accepted/weak hit with stock-like `--sizein` weighting
+- `dbmatched[target]` increments for every accepted/weak hit with stock-like `--sizein` weighting
 - top hit only drives OTU assignment
 - paired output renderers:
   - `--userout`: fixed schema (`query`, `target`, `id_left`, `id_right`, `id_total`, `d_left`, `d_right`, `d_total`)
@@ -215,21 +218,21 @@ Paired extension implementation:
   - default: unassigned row behavior (`nullptr` target)
   - with `--unknown_name`: assign unmatched pairs to that explicit target name
 
-Extension mechanism: stock accounting rules are preserved; formatting is paired-specific.
+Native mechanism: stock accounting rules are preserved; formatting is paired-specific.
 
 ### Step 9: End-of-run table/database outputs
 
 Stock implementation: adds zero-count rows for DB targets not observed in matches, writes OTU/BIOM/mothur tables, and writes `dbmatched`/`dbnotmatched` FASTA outputs from accumulated counts.
 
-Paired extension implementation:
+Paired native implementation:
 - adds all paired DB targets to OTU table with zero-count completion
 - optionally adds `--unknown_name` row
 - writes OTU/BIOM/mothur tables
 - writes paired DB outputs as split FASTA only:
-  - matched targets use accumulated `dbmatched_abundance`
+  - matched targets use accumulated `dbmatched`
   - non-matched targets use original DB abundance
 
-Extension mechanism: terminal aggregation semantics are stock-aligned with paired output encoding.
+Native mechanism: terminal aggregation semantics are stock-aligned with paired output encoding.
 
 ## Remaining paired-only deltas
 

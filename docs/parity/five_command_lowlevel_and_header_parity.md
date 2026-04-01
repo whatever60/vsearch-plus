@@ -1,4 +1,4 @@
-# Low-Level Runtime and Header Naming Parity (Five Extended Commands)
+# Low-Level Runtime and Header Naming Parity (Five Paired-Aware Commands)
 
 This note summarizes parity status for:
 
@@ -31,7 +31,7 @@ Representative input IDs:
 |---|---|---|---|---|---|
 | `fastq_filter` | No (single stream) | No | N/A (no NW alignment path) | N/A | Stock mode (`--reverse`) remains on stock path; extension mode adds paired input/output CLI conventions and pair-level EE threshold evaluation. |
 | `fastx_uniques` | No (single-thread derep path) | No | N/A (no NW alignment path) | N/A | Paired mode now runs through native `src/derep_paired.cc`, and the operation is still counting/aggregation only. |
-| `cluster_unoise` | Yes (`cluster.cc` thread workers) | Yes (`cluster_paired.cc` worker/reconciliation path) | Yes (`search16` SIMD first, LMA fallback on overflow) | Yes (`search16` SIMD first, LMA fallback on overflow) | Paired mode now runs through a native stock-shaped engine in `cluster_paired.cc`. |
+| `cluster_unoise` | Yes (`cluster.cc` thread workers) | Yes (`cluster_paired.cc` worker/reconciliation path) | Yes (`search16` SIMD first, LMA fallback on overflow) | Yes (`search16` SIMD first, LMA fallback on overflow) | Paired mode now runs through a native stock-shaped engine in `cluster_paired.cc`; like stock `cluster.cc`, this path aligns candidates inline with `search16(..., 1, ...)` rather than using delayed `MAXDELAYED` batches. |
 | `uchime3_denovo` | Yes (`chimera.cc` worker threads; denovo forces one worker) | Yes (`chimera_paired.cc` mirrors the stock threaded driver shape) | Yes (candidate/full-query alignments use SIMD path then LMA fallback) | Yes (paired part-screening uses shared paired dbindex counts/bitmaps; full-query paired alignments use SIMD-first with stock overflow fallback) | Paired mode now runs through a native stock-shaped engine in `chimera_paired.cc`, with shared stock parent-selection logic and paired-native output handling. |
 | `usearch_global` | Yes (`search.cc` worker threads) | Yes (`search_paired.cc` worker threads) | Yes (`searchcore.cc` uses `search16` with LMA fallback) | Yes (`search16` SIMD first, LMA fallback on overflow, per end) | Paired mode now runs through a native stock-shaped engine in `search_paired.cc`, reusing the shared paired search core. |
 
@@ -106,7 +106,7 @@ Why:
 
 ### C) `cluster_unoise`
 
-Status: naming convention is mostly aligned; paired extension emits synchronized left/right centroid files.
+Status: naming convention is mostly aligned; native paired mode emits synchronized left/right centroid files.
 
 ```text
 Stock centroid (`--centroids`):

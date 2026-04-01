@@ -1,11 +1,12 @@
 # Python Components
 
-Python tools in this directory provide orchestration around the C/C++ VSEARCH extension and Java RDP classifier.
+Python in this repository is now limited to RDP asset download helpers.
 
 ## Commands
 
 - `python/get_rdp_classifier.py`: Download latest RDP release and pretrained assets from SourceForge.
-- `python/vsearch_plus/rdp_tav_taxonomy.py`: Compile/run Java native paired-end NB taxonomy assignment.
-- Root wrappers are also available: `get_rdp_classifier.py` and `rdp_tav_taxonomy.py`.
+- Root wrapper: `get_rdp_classifier.py`.
 
-Use `uv run` for execution when available.
+The paired TAV taxonomy launcher now lives in Java and is exposed through `./rdp_tav_taxonomy`.
+
+Use `uv run` for the downloader when available.

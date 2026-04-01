@@ -1,11 +1,11 @@
-# Cluster UNOISE Parity Notes: Stock vs Paired Extension
+# Cluster UNOISE Parity Notes: Stock vs Native Paired
 
-This document captures parity between stock `vsearch --cluster_unoise` and the paired-end extension in this workspace.
+This document captures parity between stock `vsearch --cluster_unoise` and the native paired implementation in this workspace.
 
 ## Scope and intent
 
 - Stock `cluster_unoise` denoises one sequence stream.
-- Paired extension denoises synchronized sequence pairs `(R1, R2)`.
+- Native paired mode denoises synchronized sequence pairs `(R1, R2)`.
 - Design target: preserve stock UNOISE logic where possible, and extend each operation to paired data with explicit, deterministic rules.
 
 ## Input and output semantics
@@ -31,27 +31,27 @@ This document captures parity between stock `vsearch --cluster_unoise` and the p
 ### Step 1: Input ingestion and ordering
 
 Stock: UNOISE runs on one sequence stream, sorted by decreasing abundance before clustering.
-Paired extension: runs on synchronized R1 and R2 streams, then processes paired records by decreasing abundance.
-Extension mechanism: each item is a paired record with left and right sequences plus one abundance field.
+Native paired mode: runs on synchronized R1 and R2 streams, then processes paired records by decreasing abundance.
+Native mechanism: each item is a paired record with left and right sequences plus one abundance field.
 
 ### Step 2: Candidate generation by k-mer evidence
 
 Stock: for each query sequence, extract unique query k-mers, count k-mer hits against DB/indexed targets, keep high-scoring candidates for downstream filtering/alignment.
-Paired extension: build and incrementally maintain a paired centroid k-mer index (left/right postings) and score candidates from that index using stock `unique_count`-style k-mer extraction on both ends, then combine:
+Native paired mode: build and incrementally maintain a paired centroid k-mer index (left/right postings) and score candidates from that index using stock `unique_count`-style k-mer extraction on both ends, then combine:
 score_left = shared k-mers between query.left and centroid.left
 score_right = shared k-mers between query.right and centroid.right
 score_total = score_left + score_right
 Candidate ordering follows stock minheap comparator behavior: score_total higher first, then shorter combined length first, then earlier centroid index first.
-Extension mechanism: additive two-end evidence while preserving stock idea of index-driven k-mer pre-screening.
+Native mechanism: additive two-end evidence while preserving stock idea of index-driven k-mer pre-screening.
 
 Low-level relationship in current code:
 
 - Paired Step 2 call stack:
   ```text
-  search_onequery_paired(...)
-    -> unique_count(...) + paired postings accumulation
-  search_joinhits_paired(...)
-    -> minheap_add/sort/pop
+  cluster_query_core_paired(...)
+    -> search_onequery_paired(...)
+       -> unique_count(...) + paired postings accumulation
+       -> search_topscores_paired(...)
   ```
 
 ### Step 3: Unaligned pre-filters (explicit parity list)
@@ -73,7 +73,7 @@ Stock pre-alignment filters in `search_acceptable_unaligned` and their defaults 
 | `self` | reject same header | `0` (disabled) |
 | `selfid` | reject perfect self sequence | `0` (disabled) |
 
-Paired unaligned extension preserves the stock pre-alignment filter semantics, but replaces single-end abundance and length variables with paired aggregated values in `paired_unaligned_filters_pass`:
+Paired native mode preserves the stock pre-alignment filter semantics, but replaces single-end abundance and length variables with paired aggregated values in `search_acceptable_unaligned_paired(...)`:
 
 Paired aggregated variables used by filtering
 
@@ -109,7 +109,7 @@ Low-level relationship in current code:
   ```
 - Paired Step 3 call stack:
   ```text
-  paired_unaligned_filters_pass(...)
+  search_acceptable_unaligned_paired(...)
     -> search_unaligned_numeric_filters_pass(...)
     -> paired idprefix(R1 prefix)/idsuffix(R2 prefix)/self/selfid checks
   ```
@@ -119,8 +119,8 @@ Low-level relationship in current code:
 | Filter | Paired-specific rule |
 | :-- | :-- |
 | `idprefix` | checked only on the R1 prefix (first `N` bases of left read) |
-| `idsuffix` | checked only on the R2 prefix (first `N` bases of right read; treated as merged-sequence suffix analog) |
-| `self`     | reject by checking if paired headers are identical        |
+| `idsuffix` | checked only on the R2 prefix (first `N` bases of right read) |
+| `self`     | reject by comparing the query header against the target R1 header |
 | `selfid`   | reject by checking if both paired sequences are identical |
 
 
@@ -128,21 +128,21 @@ Relevant code pointers for Step 3:
 
 - stock: `src/searchcore.cc` -> `search_acceptable_unaligned(...)`
 - shared low-level numeric kernel: `src/searchcore.cc` -> `search_unaligned_numeric_filters_pass(...)`
-- paired ext: `src/tav_extension.cc` -> `paired_unaligned_filters_pass(...)`
+- paired native: `src/searchcore_paired.cc` -> `search_acceptable_unaligned_paired(...)`
 
-### Step 4: Delayed alignment batching behavior
+### Step 4: Inline alignment behavior inside the cluster loop
 
-Stock: candidates that pass unaligned filters are queued and aligned in delayed batches (MAXDELAYED), not aligned one-by-one immediately.
-Paired extension: same staging pattern; candidate hits are delayed then aligned in batch-processing loop.
-Extension mechanism: batching kept; each delayed hit triggers two end-alignments.
+Stock: `cluster.cc` aligns candidates inline inside the cluster loop. After a candidate passes `search_acceptable_unaligned(...)`, stock calls `search16(..., 1, ...)` for that single target and falls back to the linear-memory aligner on SIMD overflow.
+Native paired mode mirrors that stock cluster shape. After a candidate passes `search_acceptable_unaligned_paired(...)`, `cluster_paired.cc` aligns R1 and R2 separately with `search16(..., 1, ...)` and falls back to `lma_r1` / `lma_r2` on SIMD overflow.
+Native mechanism: clustering keeps stock's per-candidate inline alignment pattern, but each candidate requires one alignment per end.
 
 ### Step 5: Alignment statistics used in UNOISE acceptance
 
 Stock: alignment-derived stats are used; UNOISE distance uses mismatch count from alignment, ignoring gaps.
-Paired extension: each end is globally aligned separately; mismatch counts are extracted per end; paired UNOISE distance is:
+Native paired mode: each end is globally aligned separately; mismatch counts are extracted per end; paired UNOISE distance is:
 d_pair = mismatches_left + mismatches_right
 gaps are not added into d_pair for UNOISE acceptance
-Extension mechanism: direct sum of two stock-style mismatch counts, one per end.
+Native mechanism: direct sum of two stock-style mismatch counts, one per end.
 
 ### Step 6: Aligned filters (explicit parity list)
 
@@ -162,7 +162,7 @@ Stock aligned filters in search_acceptable_aligned are:
 | `mid` | `100 * matches / (matches + mismatches) >= mid` | `0.0` |
 | `maxdiffs` | `mismatches + internal_indels <= maxdiffs` | `int_max` (effectively unbounded) |
 
-Paired aligned extension preserves the stock aligned-filter semantics, but replaces single-end counts with paired aggregated totals from the left and right end alignments.
+Paired native mode preserves the stock aligned-filter semantics, but replaces single-end counts with paired aggregated totals from the left and right end alignments.
 
 Paired aggregated variables used by filtering
 
@@ -218,8 +218,11 @@ Low-level relationship in current code:
   ```
 - Paired Step 6 call stack:
   ```text
-  paired_aligned_filters_pass(...)
+  cluster_paired(...) inline alignment path
+    -> search16(..., 1, ...) on R1 and R2
+    -> align_trim(...) on each end
     -> aggregate R1/R2 alignment totals
+  search_acceptable_aligned_paired(...)
     -> search_aligned_compute_identity_metrics(...)
     -> search_aligned_threshold_filters_pass(...)
     -> paired accept/weak labeling
@@ -240,8 +243,8 @@ Relevant code pointers for Step 6:
 - shared low-level metric kernel: `src/searchcore.cc` -> `search_aligned_compute_identity_metrics(...)`
 - shared low-level threshold kernel: `src/searchcore.cc` -> `search_aligned_threshold_filters_pass(...)`
 - stock terminal-gap trimming: `src/searchcore.cc` -> `align_trim(...)`
-- paired ext: `src/tav_extension.cc` -> `paired_aligned_filters_pass(...)`
-- paired per-end alignment backend feeding these metrics: `src/tav_extension.cc` -> `align_one_end_stock_style(...)`
+- paired native aligned filter: `src/searchcore_paired.cc` -> `search_acceptable_aligned_paired(...)`
+- paired inline alignment owner: `src/cluster_paired.cc`
 
 ### Step 7: UNOISE skew-beta acceptance rule
 
@@ -249,9 +252,9 @@ Stock: for cluster_unoise, after aligned filters:
 skew = q_abundance / target_abundance
 beta = 2^(-1 - alpha * mismatches)
 Accept if skew <= beta, or mismatches == 0.
-Paired extension: same formula and same acceptance logic, with:
+Native paired mode: same formula and same acceptance logic, with:
 mismatches replaced by d_pair = mismatches_left + mismatches_right
-Extension mechanism: formula unchanged, distance generalized to paired sum.
+Native mechanism: formula unchanged, distance is generalized to the paired sum.
 
 ### Step 8: Weak-hit bookkeeping and early-stop behavior
 
@@ -260,64 +263,48 @@ accepted hits are marked accepted
 hits passing aligned filters but failing UNOISE skew-beta are marked weak
 reject/accept counters drive stopping via maxaccepts/maxrejects
 
-Paired extension:
+Native paired mode:
 same accepted/weak/rejected bookkeeping
 same maxaccepts/maxrejects-driven early stop behavior
-Extension mechanism: identical control-flow pattern, but per-candidate alignment work is paired.
+Native mechanism: identical control-flow pattern, but each aligned candidate is evaluated across two end alignments.
 
-Low-level ext control flow details (`tav_cluster_unoise` main loop):
+Low-level paired control flow details (`cluster_paired(...)` main loop):
 
-- Candidate generation yields ordered centroid candidates and starts local counters:
+- Candidate generation yields ordered centroid candidates and resets local counters:
   - `accepts = 0`
   - `rejects = 0`
-  - delayed queue `delayed` (size-bounded by `MAXDELAYED`)
-- Unaligned stage:
-  - if `paired_unaligned_filters_pass(...)` fails, candidate is immediately marked:
-    - `hit.rejected = true`
-    - `hit.weak = false`
-    - `rejects++`
-  - if unaligned checks pass, candidate enters `delayed`.
-- Delayed aligned stage (`process_delayed`):
-  - before each hit, short-circuit if:
-    - `accepts >= maxaccepts_effective`, or
-    - `rejects >= maxrejects_effective`
-  - run `paired_aligned_filters_pass(...)`:
-    - if false: mark hard reject (`rejected=true`, `weak=false`), `rejects++`
-  - if aligned filters pass, evaluate UNOISE skew-beta:
-    - `skew = q.abundance / centroid.abundance`
-    - `beta = 2^(-1 - alpha * mismatches_total)`
-    - accept when `(skew <= beta) or (mismatches_total == 0)`
-      - mark `accepted=true`, `weak=false`, `accepts++`
-    - otherwise weak reject
-      - mark `rejected=true`, `weak=true`, `rejects++`
+- For each candidate, in hit order:
+  - if `search_acceptable_unaligned_paired(...)` fails, the hit is immediately marked rejected and `rejects++`
+  - otherwise `cluster_paired.cc` aligns both ends inline, trims each alignment with `align_trim(...)`, aggregates paired totals, and then calls `search_acceptable_aligned_paired(...)`
+  - if paired aligned filters plus the UNOISE skew-beta rule pass, the hit is marked accepted and `accepts++`
+  - otherwise the hit becomes a hard reject or weak reject, and `rejects++`
 - Early-stop semantics:
-  - scanning candidates stops once accepts/rejects limits are reached.
-  - delayed hits that were never finalized due early stop are ignored.
+  - scanning stops once accepts/rejects limits are reached
+  - trailing undecided hits are dropped from the local hit array
 - This is why Step 8 parity is about state transitions and stopping rules, not just final labels.
 
 Relevant code pointers for Step 8:
 
-- paired ext orchestration: `src/tav_extension.cc` -> `tav_cluster_unoise(...)`
-  - `process_delayed` lambda (weak-hit bookkeeping + early stop)
-  - candidate loop guards using `maxaccepts_effective`/`maxrejects_effective`
+- paired native orchestration: `src/cluster_paired.cc` -> `cluster_paired(...)`
+- paired aligned filter logic: `src/searchcore_paired.cc` -> `search_acceptable_aligned_paired(...)`
 - stock counterpart behavior:
-  - `src/searchcore.cc` -> `align_delayed(...)`
+  - `src/cluster.cc`
   - `src/searchcore.cc` -> `search_acceptable_aligned(...)`
 
 ### Step 9: Best-hit selection and centroid update
 
 Stock: best accepted candidate for UNOISE path is selected by bysize comparator family (abundance first, then identity, then target index), then query is assigned to existing centroid or starts a new centroid.
-Paired extension: among accepted paired hits, best is chosen with the same ordering (abundance first, then identity, then centroid index), then query abundance is merged or new centroid is created.
-Extension mechanism: same centroid-update semantics, paired metrics for ranking.
+Native paired mode: among accepted paired hits, best is chosen with the same ordering (abundance first, then identity, then centroid index), then query abundance is merged or a new centroid is created.
+Native mechanism: same centroid-update semantics, paired metrics for ranking.
 
 ### Step 10: Output semantics for denoised centroids
 
 Stock: centroids output means denoised FASTA centroid sequences.
-Paired extension (now aligned to your requested semantics):
+Native paired mode:
 centroids means denoised paired centroid FASTA output:
 centroids path writes R1 centroid FASTA
 fastaout_rev writes corresponding R2 centroid FASTA
-Extension mechanism: centroid concept lifted from single sequence to paired sequence tuple.
+Native mechanism: centroid concept is lifted from a single sequence to a paired sequence tuple.
 
 
 ## Operational constraints in paired mode
@@ -332,7 +319,7 @@ Extension mechanism: centroid concept lifted from single sequence to paired sequ
 
 ## Parity status summary
 
-- Current status: cluster_unoise paired extension is now on the stock backbone for candidate generation, delayed alignment, aligned/unaligned filters, UNOISE skew-beta acceptance, and bysize best-hit tie-breaking.
+- Current status: paired `cluster_unoise` now uses native paired modules plus the shared paired search-core filters for unaligned/aligned acceptance, UNOISE skew-beta acceptance, and bysize best-hit tie-breaking.
 - Intentional paired-only extensions are:
   - two-end aggregation semantics
   - no extra loader-level pair-drop gate from `--minseqlength`/`--maxseqlength`/`--filter`

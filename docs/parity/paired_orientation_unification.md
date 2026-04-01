@@ -1,33 +1,33 @@
 # Paired Orientation Unification (R2 Kept Native)
 
-This note documents the paired-orientation policy for the extension pipeline.
+This note documents the paired-orientation policy for the native paired pipeline.
 
 ## Policy
 
 - External input/output orientation is now unified: R1 and R2 stay in their original read orientation.
-- We no longer reverse-complement R2 as a persistent data transformation in the paired VSEARCH extension path.
+- We no longer reverse-complement R2 as a persistent data transformation in the native paired VSEARCH path.
 - Internal reverse handling is allowed only when required by a specific algorithm.
 
 ## Command-level behavior
 
-For the paired extension path (`fastx_uniques -> cluster_unoise -> uchime3_denovo -> usearch_global`) and paired RDP classification:
+For the native paired path (`fastx_uniques -> cluster_unoise -> uchime3_denovo -> usearch_global`) and paired RDP classification:
 
-1. `fastx_uniques` (paired extension)
+1. `fastx_uniques` (native paired mode)
 - R2 is not reverse-complemented at ingestion.
 - Right anchors are written in native R2 orientation.
 
-2. `cluster_unoise` (paired extension)
+2. `cluster_unoise` (native paired mode)
 - Uses paired records from `fastx_uniques` in native orientation.
 - No persistent R2 RC transform.
 
-3. `uchime3_denovo` (paired extension)
+3. `uchime3_denovo` (native paired mode)
 - Uses paired records in native orientation.
 - Breakpoint scan logic is orientation-aware for the right segment:
   - left segment scanned from start to end
   - right segment scanned from end to start
   This preserves the intended combined-axis chimera model while keeping stored R2 unchanged.
 
-4. `usearch_global` (paired extension)
+4. `usearch_global` (native paired mode)
 - Query and database right-end anchors are compared in native R2 orientation.
 - No query-side forced R2 RC at ingestion.
 

@@ -13,7 +13,7 @@ python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
 2. Run native paired classification from split paired inputs:
 
 ```bash
-python3 rdp_tav_taxonomy.py \
+./rdp_tav_taxonomy \
   --input data/real_out2/tav_left.fa \
   --input2 data/real_out2/tav_right.fa \
   --output data/real_out2/tav_taxonomy_native.tsv \
@@ -26,7 +26,7 @@ python3 rdp_tav_taxonomy.py \
 3. Optional interleaved mode:
 
 ```bash
-python3 rdp_tav_taxonomy.py \
+./rdp_tav_taxonomy \
   --input interleaved_tav.fa \
   --interleaved \
   --output tav_taxonomy_native.tsv
@@ -51,8 +51,6 @@ The command writes one stock-compatible classification stream where each line is
 
 Not currently supported in paired mode:
 
-- `--bootstrap_outfile` / `-b`
-- `--hier_outfile` / `-h`
 - `--metadata` / `-d`
 - `--biomFile` / `-m`
 - `--format biom`

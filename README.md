@@ -44,8 +44,8 @@ This repository also contains `vsearch_plus` extensions that add paired-end TAV 
 Key folders:
 
 * `src/` - VSEARCH C/C++ core and paired-end extension code
-* `python/` - Python orchestration tools, including RDP download and TAV taxonomy assignment
-* `java/` - Java integration notes (RDP runtime is reused directly)
+* `python/` - Python download utility for RDP assets
+* `java/` - Java launcher and paired-end RDP extension sources
 * `docs/` - parity notes, roadmap logs, and taxonomy control-flow documentation
 
 Paired-end parity docs:
@@ -60,7 +60,7 @@ RDP helper commands:
 
 ```bash
 python3 get_rdp_classifier.py --output-root data/third_party/rdp_classifier
-python3 rdp_tav_taxonomy.py --input data/real_out2/tav_left.fa --input2 data/real_out2/tav_right.fa --output data/real_out2/tav_taxonomy_native.tsv
+./rdp_tav_taxonomy --input data/real_out2/tav_left.fa --input2 data/real_out2/tav_right.fa --output data/real_out2/tav_taxonomy_native.tsv
 ```
 
 ## Getting Help

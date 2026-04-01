@@ -1,6 +1,6 @@
-# UCHIME3-Denovo Parity Notes: Stock vs Paired Extension
+# UCHIME3-Denovo Parity Notes: Stock vs Native Paired
 
-This document captures parity status between stock `vsearch --uchime3_denovo` and the paired-end extension in this workspace.
+This document captures parity status between stock `vsearch --uchime3_denovo` and the native paired implementation in this workspace.
 
 ## Scope and intent
 
@@ -56,7 +56,7 @@ Stock implementation: `cmd_chimera()` routes plain `--uchime3_denovo` (without p
 
 Paired native implementation: `cmd_chimera()` detects paired input (`R2` as second positional input or `--interleaved`) and routes to `uchime3_denovo_paired()`. It enforces the same `abskew/xn/dn` guards, enforces split FASTA pairing (`--chimeras` with `--chimeras2`, `--nonchimeras` with `--nonchimeras2`), and requires at least one output among paired FASTA, TSV catalog, `--tabbedout`, `--uchimeout`, `--uchimealns`, or `--borderline`.
 
-Extension mechanism: paired mode is an explicit alternate execution path, not a flag inside the stock `chimera()` loop.
+Native mechanism: paired mode is an explicit alternate execution path, not a flag inside the stock `chimera()` loop.
 
 ### Step 2: Input loading, masking, and deterministic processing order
 
@@ -68,7 +68,7 @@ Paired native implementation: `uchime3_denovo_paired()` loads paired FASTX input
 3. left sequence ascending
 4. right sequence ascending
 
-Extension mechanism: each processing unit is a native `record_paired_s` pair `(R1,R2,abundance,header)` rather than a single sequence.
+Native mechanism: each processing unit is a native `record_paired_s` pair `(R1,R2,abundance,header)` rather than a single sequence.
 
 ### Step 3: Parent search space construction and growth rule
 
@@ -79,7 +79,7 @@ Paired native implementation: `uchime3_denovo_paired()` now reuses the shared pa
 - the native engine keeps a logical paired target mapping through `target_seqnos_r1_paired` and `target_seqnos_r2_paired`.
 - after each non-chimeric query, `dbindex_addsequence_paired(current_seqno, opt_qmask)` is called to incrementally expose that pair as future parent material.
 
-Extension mechanism: both modes use a monotonic non-chimeric parent index with incremental growth; paired mode keeps end-specific semantics inside the shared paired dbindex layer rather than by managing two separate stock dbindex insertions.
+Native mechanism: both modes use a monotonic non-chimeric parent index with incremental growth; paired mode keeps end-specific semantics inside the shared paired dbindex layer rather than by managing two separate stock dbindex insertions.
 
 ### Step 4: Candidate enumeration for the current query
 
@@ -94,7 +94,7 @@ Paired native implementation:
 - Top candidates are retained with stock-like bounded heap behavior (`maxaccepts + maxrejects` style cap).
 - Full-query alignments are then computed for each retained candidate to build match vectors used by parent selection.
 
-Extension mechanism: this is now a paired analog of stock candidate discovery + full-query alignment materialization, rather than direct iteration over all eligible parents.
+Native mechanism: this is now a paired analog of stock candidate discovery + full-query alignment materialization, rather than direct iteration over all eligible parents.
 
 ### Step 5: One-parent baseline (`best_one`)
 
@@ -108,7 +108,7 @@ Paired native implementation: `best_one_score` is now computed from the selected
 `best_one = max(match_QA, match_QB)` (count scale), mirroring stock's `QT = max(QA,QB)` baseline semantics within the same evaluation stage.
 For no-parent cases, `best_one` falls back to full query-length count for reporting continuity.
 
-Extension mechanism: the paired path now aligns with stock by deriving one-parent baseline from the evaluated parent pair, rather than running a separate pre-model one-parent optimization sweep.
+Native mechanism: the paired path now aligns with stock by deriving one-parent baseline from the evaluated parent pair, rather than running a separate pre-model one-parent optimization sweep.
 
 ### Step 6: Two-parent preselection (stock-like 32 bp voting)
 
@@ -148,7 +148,7 @@ Low-level relationship in current code:
     -> select_best_two_parents_from_match_matrix(...)
   ```
 
-Extension mechanism: paired parent preselection now uses alignment-derived match vectors and shared stock winner-window selection logic rather than direct character-equality heuristics or all-pairs fallback.
+Native mechanism: paired parent preselection now uses alignment-derived match vectors and shared stock winner-window selection logic rather than direct character-equality heuristics or all-pairs fallback.
 
 ### Step 7: Diff coding and `h` optimization for two-parent models
 
@@ -184,7 +184,7 @@ Low-level relationship in current code:
     -> stock-style diff/vote/model scoring
   ```
 
-Extension mechanism: the paired path now uses stock-style diff coding and one-pass breakpoint scan; paired class labels are metadata derived from the chosen breakpoint position.
+Native mechanism: the paired path now uses stock-style diff coding and one-pass breakpoint scan; paired class labels are metadata derived from the chosen breakpoint position.
 
 ### Step 8: Final chimeric decision rule
 
@@ -206,7 +206,7 @@ Classify as chimeric iff:
 - `match_QM == cols`
 - `QT < 100.0`
 
-Extension mechanism: parity is kept in the decision rule itself; paired breakpoint class (`LEFT_BREAK`/`MIDDLE_BREAK`/`RIGHT_BREAK`) is retained as annotation in paired reports, not as an extra classification gate.
+Native mechanism: parity is kept in the decision rule itself; paired breakpoint class (`LEFT_BREAK`/`MIDDLE_BREAK`/`RIGHT_BREAK`) is retained as annotation in paired reports, not as an extra classification gate.
 
 ### Step 9: Parent-index update after classification
 
@@ -214,7 +214,7 @@ Stock implementation: all non-chimeric outcomes (`status < suspicious`) are adde
 
 Paired native implementation: all non-chimeric pairs are added to the paired denovo parent index via `dbindex_addsequence_paired(...)`; chimeric pairs are never added.
 
-Extension mechanism: identical growth policy, but parent units are paired records.
+Native mechanism: identical growth policy, but parent units are paired records.
 
 ### Step 10: Output materialization
 
@@ -242,11 +242,11 @@ Paired native implementation comparison against stock:
   - `--chimeras_tsv` / `--nonchimeras_tsv` paired catalog TSV with 5 columns:
     `tav_id, abundance, header, left_anchor, right_anchor`
 
-Extension mechanism: paired outputs carry more metrics than stock because the paired algorithm has extra latent variables (two ends + breakpoint class) that do not exist in stock's single-axis model.
+Native mechanism: paired outputs carry more metrics than stock because the paired algorithm has extra latent variables (two ends + breakpoint class) that do not exist in stock's single-axis model.
 
 ## Operational constraints in paired mode
 
-- Paired extension is entered when paired input is provided (`R2` as second positional input or `--interleaved`).
+- Paired native mode is entered when paired input is provided (`R2` as second positional input or `--interleaved`).
 - At least one output must be specified among:
   - `--nonchimeras` + `--nonchimeras2`
   - `--chimeras` + `--chimeras2`

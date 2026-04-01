@@ -340,8 +340,7 @@ auto search_acceptable_unaligned_paired(searchinfo_s_paired const &searchinfo,
       /* idsuffix */
       ((searchinfo.qseqlen_r2 >= opt_idsuffix) and
        (dseqlen_r2 >= opt_idsuffix) and
-       (seqcmp(searchinfo.qsequence_r2 + searchinfo.qseqlen_r2 - opt_idsuffix,
-               dseq_r2 + dseqlen_r2 - opt_idsuffix, opt_idsuffix) == 0)) and
+       (seqcmp(searchinfo.qsequence_r2, dseq_r2, opt_idsuffix) == 0)) and
       /* self */
       ((opt_self == 0) or (std::strcmp(searchinfo.query_head, dlabel) != 0)) and
       /* selfid */

@@ -13,10 +13,10 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 3. Paired support starts inside NB likelihood and bootstrap computation.
 4. One primary TAV output stream, stock formatter semantics.
 
-## Why Python launcher + Java core
+## Why Java launcher + Java core
 
 - The classifier core is Java (`PairedClassifierMain`, `PairedNaiveBayesClassifier`) because it directly reuses stock RDP Java internals.
-- The Python entrypoint is only a thin launcher for:
+- The top-level `rdp_tav_taxonomy` command now delegates to a Java launcher for:
   - resolving RDP jar/model paths from `manifest.json`
   - compiling local extension Java sources
   - constructing Java classpath/JVM options consistently
@@ -25,7 +25,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 ## Command surface
 
 ```bash
-python3 rdp_tav_taxonomy.py \
+./rdp_tav_taxonomy \
   --input tav_left.fa \
   --input2 tav_right.fa \
   --output tav_taxonomy.tsv
@@ -34,7 +34,7 @@ python3 rdp_tav_taxonomy.py \
 Interleaved mode:
 
 ```bash
-python3 rdp_tav_taxonomy.py \
+./rdp_tav_taxonomy \
   --input tav_interleaved.fa \
   --interleaved \
   --output tav_taxonomy.tsv
