@@ -92,11 +92,13 @@ jobs:
 
       - name: Update bioconda recipe branch
         env:
+          BIOCONDA_RECIPE_PAT: ${{ secrets.BIOCONDA_RECIPE_PAT }}
           VERSION: ${{ steps.meta.outputs.version }}
           SHA256: ${{ steps.archive.outputs.sha256 }}
           BRANCH: ${{ steps.meta.outputs.branch }}
         run: |
           cd bioconda-recipes
+          git remote set-url origin "https://x-access-token:${BIOCONDA_RECIPE_PAT}@github.com/${GITHUB_REPOSITORY_OWNER}/bioconda-recipes.git"
 
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
             git checkout "$BRANCH"
