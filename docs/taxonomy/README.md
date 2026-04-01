@@ -4,16 +4,10 @@ This module performs taxonomy assignment for TAV sequences as native paired-end 
 
 ## Quickstart
 
-1. Download or refresh RDP assets:
+1. Run native paired classification from split paired inputs:
 
 ```bash
-./scripts/vsearch-plus-rdp-download --output-root data/rdp_classifier
-```
-
-2. Run native paired classification from split paired inputs:
-
-```bash
-./scripts/vsearch-plus-rdp-tav \
+./scripts/rdp-classifier \
   --input data/real_out2/tav_left.fa \
   --input2 data/real_out2/tav_right.fa \
   --output data/real_out2/tav_taxonomy_native.tsv \
@@ -23,10 +17,12 @@ This module performs taxonomy assignment for TAV sequences as native paired-end 
   --java-opt=-Xmx2g
 ```
 
-3. Optional interleaved mode:
+The first real `rdp-classifier` run downloads the required RDP assets automatically.
+
+2. Optional interleaved mode:
 
 ```bash
-./scripts/vsearch-plus-rdp-tav \
+./scripts/rdp-classifier \
   --input interleaved_tav.fa \
   --interleaved \
   --output tav_taxonomy_native.tsv

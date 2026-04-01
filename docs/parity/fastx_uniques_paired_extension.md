@@ -23,7 +23,7 @@ Paired extension is selected by running `--fastx_uniques` with paired input:
 Example:
 
 ```bash
-./scripts/vsearch-plus \
+./build/cpp/bin/vsearch \
   --fastx_uniques reads_R1.fastq.gz reads_R2.fastq.gz \
   --fastaout tav_left.fasta \
   --fastaout_rev tav_right.fasta \

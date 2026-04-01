@@ -16,8 +16,8 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 ## Why Java launcher + Java core
 
 - The classifier core is Java (`PairedClassifierMain`, `PairedNaiveBayesClassifier`) because it directly reuses stock RDP Java internals.
-- The top-level `scripts/vsearch-plus-rdp-tav` command now delegates to a Java launcher for:
-  - resolving RDP jar/model paths from `manifest.json`
+- The top-level `scripts/rdp-classifier` command now delegates to a Java launcher for:
+  - resolving RDP jar/model paths from `data/rdp_classifier/manifest.json`
   - compiling local extension Java sources
   - constructing Java classpath/JVM options consistently
 - Classification math and formatting still run in Java.
@@ -25,7 +25,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 ## Command surface
 
 ```bash
-./scripts/vsearch-plus-rdp-tav \
+./scripts/rdp-classifier \
   --input tav_left.fa \
   --input2 tav_right.fa \
   --output tav_taxonomy.tsv
@@ -34,7 +34,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 Interleaved mode:
 
 ```bash
-./scripts/vsearch-plus-rdp-tav \
+./scripts/rdp-classifier \
   --input tav_interleaved.fa \
   --interleaved \
   --output tav_taxonomy.tsv

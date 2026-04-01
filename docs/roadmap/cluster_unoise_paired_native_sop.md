@@ -26,7 +26,7 @@ It is based on:
   - `clusterinfo_s_paired` retains per-end CIGAR ownership in stock style
   - both `--threads 2` and `--threads 1` paired smoke outputs now agree on the hit-case and OTU-table smoke inputs
 - A native paired smoke test has succeeded with:
-  - `./scripts/vsearch-plus --cluster_unoise .tmp_refactor_smoke/r1.fa .tmp_refactor_smoke/r2.fa --minsize 1 --fastaout .tmp_native_cluster_smoke/out_r1.fa --fastaout_rev .tmp_native_cluster_smoke/out_r2.fa --threads 2`
+  - `./build/cpp/bin/vsearch --cluster_unoise .tmp_refactor_smoke/r1.fa .tmp_refactor_smoke/r2.fa --minsize 1 --fastaout .tmp_native_cluster_smoke/out_r1.fa --fastaout_rev .tmp_native_cluster_smoke/out_r2.fa --threads 2`
 - A paired core-result smoke test has also succeeded with:
   - `--uc`
   - `--otutabout`

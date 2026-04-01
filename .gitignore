@@ -50,6 +50,7 @@ __pycache__/
 !/data/manifests/
 /data/manifests/*
 !/data/manifests/README.md
+/extern/
 /.tmp*/
 
 !/Makefile

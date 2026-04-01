@@ -2,8 +2,9 @@
 
 This project reuses the official RDP Classifier Java runtime for taxonomy assignment.
 
-- RDP executable jar is downloaded under `data/rdp_classifier/`.
-- Taxonomy inference is launched through `./scripts/vsearch-plus-rdp-tav`.
+- RDP executable jar is downloaded under `extern/java/rdp_classifier/`.
+- RDP pretrained data and manifest are downloaded under `data/rdp_classifier/`.
+- Taxonomy inference is launched through `./scripts/rdp-classifier`.
 - Native paired-end NB extension sources live under `java/src/main/java/org/vsearchplus/rdp/`.
 
 ## Why Java Is Still First-Class Here

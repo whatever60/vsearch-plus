@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ -d "$script_dir/../share/vsearch-plus" ]]; then
+  prefix="$(cd "$script_dir/.." && pwd)"
+  package_root="$(cd "$prefix/share/vsearch-plus" && pwd)"
+  if [[ -n "${VSEARCH_PLUS_RUNTIME_ROOT:-}" ]]; then
+    runtime_root="$VSEARCH_PLUS_RUNTIME_ROOT"
+  elif [[ -n "${XDG_DATA_HOME:-}" ]]; then
+    runtime_root="$XDG_DATA_HOME/vsearch-plus"
+  else
+    runtime_root="$HOME/.local/share/vsearch-plus"
+  fi
+else
+  package_root="$(cd "$script_dir/.." && pwd)"
+  if [[ -n "${VSEARCH_PLUS_RUNTIME_ROOT:-}" ]]; then
+    runtime_root="$VSEARCH_PLUS_RUNTIME_ROOT"
+  else
+    runtime_root="$package_root"
+  fi
+fi
+
+helper_path="$package_root/scripts/get_rdp_classifier.py"
+launcher_src="$package_root/java/src/main/java/org/vsearchplus/rdp/RdpTavTaxonomyMain.java"
+launcher_dir="$runtime_root/build/java/launcher_classes"
+launcher_class="$launcher_dir/org/vsearchplus/rdp/RdpTavTaxonomyMain.class"
+bootstrap_javac="${JAVAC_BIN:-javac}"
+bootstrap_java="${JAVA_BIN:-java}"
+python_bin="${PYTHON_BIN:-python3}"
+manifest_path="$runtime_root/data/rdp_classifier/manifest.json"
+show_help=false
+forwarded_args=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --help)
+      show_help=true
+      forwarded_args+=("$arg")
+      ;;
+    *)
+      forwarded_args+=("$arg")
+      ;;
+  esac
+done
+
+export VSEARCH_PLUS_RUNTIME_ROOT="$runtime_root"
+
+if [[ ! -f "$manifest_path" && "$show_help" == false ]]; then
+  echo "Initializing RDP assets under $runtime_root ..." >&2
+  "$python_bin" "$helper_path"
+fi
+
+if [[ ! -f "$launcher_class" || "$launcher_src" -nt "$launcher_class" ]]; then
+  mkdir -p "$launcher_dir"
+  "$bootstrap_javac" -d "$launcher_dir" "$launcher_src"
+fi
+
+exec "$bootstrap_java" \
+  -Dvsearchplus.package.root="$package_root" \
+  -Dvsearchplus.runtime.root="$runtime_root" \
+  -cp "$launcher_dir" \
+  org.vsearchplus.rdp.RdpTavTaxonomyMain \
+  "${forwarded_args[@]}"

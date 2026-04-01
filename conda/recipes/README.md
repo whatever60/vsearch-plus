@@ -1,10 +1,10 @@
 # Conda Recipes
 
-This directory is reserved for the Bioconda recipe work that will package:
+This directory contains the local recipe scaffolding for the Bioconda packaging work around:
 
-- the paired VSEARCH binary wrapper
-- the paired RDP launcher
-- the RDP downloader helper
+- the compiled `vsearch-plus` executable
+- the public `rdp-classifier` launcher
+- the internal RDP downloader helper used by `rdp-classifier`
 
 Scaffolding directories are already present for:
 
@@ -13,4 +13,5 @@ Scaffolding directories are already present for:
 - `conda/recipes/vsearch-plus-python/`
 - `conda/recipes/vsearch-plus/`
 
-Recipe files will be added in the follow-up packaging pass.
+The aggregate recipe now lives under `conda/recipes/vsearch-plus/`.
+The split package directories remain as placeholders in case the packaging strategy changes later.

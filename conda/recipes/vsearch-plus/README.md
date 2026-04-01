@@ -2,4 +2,5 @@
 
 This directory is reserved for the aggregate `vsearch-plus` conda recipe.
 
-The recipe will compose the paired VSEARCH binary, the paired RDP launcher, and the downloader helper in the Bioconda packaging pass.
+The recipe installs the public `vsearch-plus` and `rdp-classifier` commands.
+The Python downloader helper remains package-internal support code.

@@ -329,7 +329,7 @@ Native mechanism: centroid concept is lifted from a single sequence to a paired 
 ## Example paired command
 
 ```bash
-./scripts/vsearch-plus \
+./build/cpp/bin/vsearch \
   --cluster_unoise uniques_r1.fasta uniques_r2.fasta \
   --centroids denoised_r1.fasta \
   --fastaout_rev denoised_r2.fasta \

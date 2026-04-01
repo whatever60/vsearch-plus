@@ -145,7 +145,7 @@ Paired extension is selected by running `--fastx_uniques` with paired input:
 Example:
 
 ```bash
-./scripts/vsearch-plus \
+./build/cpp/bin/vsearch \
   --fastx_uniques reads_R1.fastq.gz reads_R2.fastq.gz \
   --fastaout tav_left.fasta \
   --fastaout_rev tav_right.fasta \
@@ -602,7 +602,7 @@ Extension mechanism: centroid concept lifted from single sequence to paired sequ
 ## Example paired command
 
 ```bash
-./scripts/vsearch-plus \
+./build/cpp/bin/vsearch \
   --cluster_unoise uniques_r1.fasta uniques_r2.fasta \
   --centroids denoised_r1.fasta \
   --fastaout_rev denoised_r2.fasta \
@@ -884,7 +884,7 @@ Extension mechanism: paired outputs carry more metrics than stock because the pa
 ## Example paired command
 
 ```bash
-./scripts/vsearch-plus \
+./build/cpp/bin/vsearch \
   --uchime3_denovo denoised_r1.fasta denoised_r2.fasta \
   --tabbedout chim_report.tsv \
   --uchimeout chim_uchime.tsv \
@@ -1409,8 +1409,8 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 ## Why Java launcher + Java core
 
 - The classifier core is Java (`PairedClassifierMain`, `PairedNaiveBayesClassifier`) because it directly reuses stock RDP Java internals.
-- The top-level `scripts/vsearch-plus-rdp-tav` command now delegates to a Java launcher for:
-  - resolving RDP jar/model paths from `manifest.json`
+- The top-level `scripts/rdp-classifier` command now delegates to a Java launcher for:
+  - resolving RDP jar/model paths from `data/rdp_classifier/manifest.json`
   - compiling local extension Java sources
   - constructing Java classpath/JVM options consistently
 - Classification math and formatting still run in Java.
@@ -1418,7 +1418,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 ## Command surface
 
 ```bash
-./scripts/vsearch-plus-rdp-tav \
+./scripts/rdp-classifier \
   --input tav_left.fa \
   --input2 tav_right.fa \
   --output tav_taxonomy.tsv
@@ -1427,7 +1427,7 @@ Goal: preserve the stock Naive Bayes backbone while changing the query object fr
 Interleaved mode:
 
 ```bash
-./scripts/vsearch-plus-rdp-tav \
+./scripts/rdp-classifier \
   --input tav_interleaved.fa \
   --interleaved \
   --output tav_taxonomy.tsv

@@ -15,8 +15,8 @@ import java.util.stream.Stream;
 /**
  * Java launcher for paired-end TAV taxonomy assignment.
  *
- * This bootstrap class keeps the Python launcher responsibilities in Java:
- * resolve the downloaded RDP runtime, compile the in-repo paired extension,
+ * This bootstrap class keeps the taxonomy launcher responsibilities in Java:
+ * resolve the downloaded RDP runtime, compile the packaged paired extension,
  * and launch the classifier main class with the correct classpath.
  */
 public final class RdpTavTaxonomyMain {
@@ -36,17 +36,18 @@ public final class RdpTavTaxonomyMain {
       return;
     }
 
-    final Path repoRoot = resolveRepoRoot();
-    final Path classifierJar = resolveClassifierJar(parsed, repoRoot);
-    final String trainProp = resolveEffectiveTrainProp(parsed, repoRoot);
+    final Path packageRoot = resolvePackageRoot();
+    final Path runtimeRoot = resolveRuntimeRoot(packageRoot);
+    final Path classifierJar = resolveClassifierJar(parsed, runtimeRoot);
+    final String trainProp = resolveEffectiveTrainProp(parsed, runtimeRoot);
     final List<String> runtimeJars = collectRuntimeJars(classifierJar);
-    final Path buildClasses = compileJavaExtension(repoRoot, runtimeJars,
+    final Path buildClasses = compileJavaExtension(packageRoot, runtimeRoot,
+                                                   runtimeJars,
                                                    parsed.javacBin);
 
     final List<String> javaCommand =
         buildJavaCommand(parsed, buildClasses, runtimeJars, trainProp);
     final Process process = new ProcessBuilder(javaCommand)
-                                .directory(repoRoot.toFile())
                                 .inheritIO()
                                 .start();
     final int exitCode = process.waitFor();
@@ -154,30 +155,48 @@ public final class RdpTavTaxonomyMain {
   }
 
   /**
-   * Resolve the repository root from the launcher property or cwd.
+   * Resolve the package root from the launcher property or cwd.
    */
-  private static Path resolveRepoRoot() {
-    final String repoRoot = System.getProperty("vsearchplus.repo.root");
-    if (repoRoot != null) {
-      return Paths.get(repoRoot).toAbsolutePath().normalize();
+  private static Path resolvePackageRoot() {
+    final String packageRoot = System.getProperty("vsearchplus.package.root");
+    if (packageRoot != null) {
+      return Paths.get(packageRoot).toAbsolutePath().normalize();
     }
     return Paths.get("").toAbsolutePath().normalize();
+  }
+
+  /**
+   * Resolve the runtime root from the launcher property, env var, or package
+   * root.
+   */
+  private static Path resolveRuntimeRoot(final Path packageRoot) {
+    final String runtimeRoot = System.getProperty("vsearchplus.runtime.root");
+    if (runtimeRoot != null) {
+      return Paths.get(runtimeRoot).toAbsolutePath().normalize();
+    }
+
+    final String envRuntimeRoot = System.getenv("VSEARCH_PLUS_RUNTIME_ROOT");
+    if (envRuntimeRoot != null) {
+      return Paths.get(envRuntimeRoot).toAbsolutePath().normalize();
+    }
+
+    return packageRoot;
   }
 
   /**
    * Resolve the stock RDP classifier jar path.
    */
   private static Path resolveClassifierJar(final LauncherArgs parsed,
-                                           final Path repoRoot)
+                                           final Path runtimeRoot)
       throws IOException {
     if (parsed.rdpJar != null) {
-      return resolvePath(repoRoot, parsed.rdpJar);
+      return resolvePath(runtimeRoot, parsed.rdpJar);
     }
 
     final Path manifestPath =
-        resolvePath(repoRoot, parsed.rdpRoot).resolve("manifest.json");
+        resolvePath(runtimeRoot, parsed.rdpRoot).resolve("manifest.json");
     final Path classifierRoot =
-        resolvePath(repoRoot, readManifestPath(manifestPath, "classifier"));
+        resolvePath(runtimeRoot, readManifestPath(manifestPath, "classifier"));
 
     try (Stream<Path> walk = Files.walk(classifierRoot)) {
       final List<Path> matches =
@@ -197,16 +216,17 @@ public final class RdpTavTaxonomyMain {
    * Resolve the effective train-prop path when one is available.
    */
   private static String resolveEffectiveTrainProp(final LauncherArgs parsed,
-                                                  final Path repoRoot)
+                                                  final Path runtimeRoot)
       throws IOException {
     if (parsed.hasExplicitTrainProp) {
       return parsed.explicitTrainProp;
     }
 
     final Path manifestPath =
-        resolvePath(repoRoot, parsed.rdpRoot).resolve("manifest.json");
+        resolvePath(runtimeRoot, parsed.rdpRoot).resolve("manifest.json");
     final Path pretrainedRoot =
-        resolvePath(repoRoot, readManifestPath(manifestPath, "pretrained_data"));
+        resolvePath(runtimeRoot,
+                    readManifestPath(manifestPath, "pretrained_data"));
     final String relativeSuffix = String.join("/",
                                               "classifier",
                                               parsed.gene,
@@ -251,14 +271,14 @@ public final class RdpTavTaxonomyMain {
   }
 
   /**
-   * Resolve a possibly relative path from the repository root.
+   * Resolve a possibly relative path from the given root.
    */
-  private static Path resolvePath(final Path repoRoot, final String rawPath) {
+  private static Path resolvePath(final Path root, final String rawPath) {
     final Path path = Paths.get(rawPath);
     if (path.isAbsolute()) {
       return path.normalize();
     }
-    return repoRoot.resolve(path).normalize();
+    return root.resolve(path).normalize();
   }
 
   /**
@@ -283,17 +303,18 @@ public final class RdpTavTaxonomyMain {
   }
 
   /**
-   * Compile the in-repo paired classifier sources against the RDP jars.
+   * Compile the packaged paired classifier sources against the RDP jars.
    */
-  private static Path compileJavaExtension(final Path repoRoot,
+  private static Path compileJavaExtension(final Path packageRoot,
+                                           final Path runtimeRoot,
                                            final List<String> runtimeJars,
                                            final String javacBin)
       throws IOException, InterruptedException {
     final Path javaSrcDir =
-        repoRoot.resolve("java").resolve("src").resolve("main").resolve(
+        packageRoot.resolve("java").resolve("src").resolve("main").resolve(
             "java");
     final Path javaBuildDir =
-        repoRoot.resolve("build").resolve("java").resolve("classes");
+        runtimeRoot.resolve("build").resolve("java").resolve("classes");
     Files.createDirectories(javaBuildDir);
 
     final List<String> sourceFiles;
@@ -317,7 +338,7 @@ public final class RdpTavTaxonomyMain {
     compileCommand.addAll(sourceFiles);
 
     final Process process = new ProcessBuilder(compileCommand)
-                                .directory(repoRoot.toFile())
+                                .directory(packageRoot.toFile())
                                 .inheritIO()
                                 .start();
     final int exitCode = process.waitFor();
@@ -481,7 +502,7 @@ public final class RdpTavTaxonomyMain {
    */
   private static void printUsage() {
     System.out.println(
-        "USAGE: vsearch-plus-rdp-tav [launcher options] [classification options]");
+        "USAGE: rdp-classifier [launcher options] [classification options]");
     System.out.println("Launcher options:");
     System.out.println(
         "  --rdp-root <dir>             RDP asset root containing manifest.json");

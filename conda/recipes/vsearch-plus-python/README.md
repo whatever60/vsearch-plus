@@ -1,3 +1,4 @@
 # vsearch-plus-python Recipe
 
-This directory is reserved for a standalone conda recipe for the Python downloader helper.
+This placeholder remains only in case the packaging strategy changes later.
+The current packaging plan keeps the Python downloader helper internal to `vsearch-plus`.

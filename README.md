@@ -60,9 +60,10 @@ Low-level stock-vs-extension function relationships are documented inline at the
 RDP helper commands:
 
 ```bash
-./scripts/vsearch-plus-rdp-download --output-root data/rdp_classifier
-./scripts/vsearch-plus-rdp-tav --input data/real_out2/tav_left.fa --input2 data/real_out2/tav_right.fa --output data/real_out2/tav_taxonomy_native.tsv
+./scripts/rdp-classifier --input data/real_out2/tav_left.fa --input2 data/real_out2/tav_right.fa --output data/real_out2/tav_taxonomy_native.tsv
 ```
+
+The first real `rdp-classifier` run downloads the required RDP assets automatically.
 
 ## Getting Help
 
@@ -72,7 +73,7 @@ If you can't find an answer in [online documentation](https://torognes.github.io
 
 In the example below, VSEARCH will identify sequences in the file database.fsa that are at least 90% identical on the plus strand to the query sequences in the file queries.fsa and write the results to the file alnout.txt.
 
-`./scripts/vsearch-plus --usearch_global queries.fsa --db database.fsa --id 0.9 --alnout alnout.txt`
+`vsearch-plus --usearch_global queries.fsa --db database.fsa --id 0.9 --alnout alnout.txt`
 
 ## Download and install
 
@@ -80,8 +81,8 @@ For local development in this repository, use the wrapper scripts:
 
 ```bash
 ./scripts/build_cpp.sh
-./scripts/vsearch-plus --help
-./scripts/vsearch-plus-rdp-tav --help
+./build/cpp/bin/vsearch --help
+./scripts/rdp-classifier --help
 ```
 
 **Source distribution** To download the source distribution from a [release](https://github.com/torognes/vsearch/releases) and build the executable and the documentation, use the following commands:
