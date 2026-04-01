@@ -457,6 +457,11 @@ auto results_show_lcaout(std::FILE *output_handle, struct hit const *hits,
 
   fprintf(output_handle, "%s\t", query_head);
 
+  if (hitcount == 0) {
+    fprintf(output_handle, "\n");
+    return;
+  }
+
   std::array<int, tax_levels> votes{{}};
   std::array<int, tax_levels> cand;
   cand.fill(-1);

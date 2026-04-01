@@ -4625,7 +4625,6 @@ auto args_init(int argc, char **argv, struct Parameters &parameters) -> void {
       (parameters.opt_search_exact != nullptr) or
       (parameters.opt_sintax != nullptr) or
       (parameters.opt_uchime_ref != nullptr) or
-      (parameters.opt_uchime3_denovo != nullptr) or
       (parameters.opt_usearch_global != nullptr)) {
     if (parameters.opt_threads == 0) {
       opt_threads = arch_get_cores();
