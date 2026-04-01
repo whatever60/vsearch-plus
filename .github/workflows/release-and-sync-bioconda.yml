@@ -152,6 +152,18 @@ jobs:
             exit 0
           fi
 
+          existing_package_pr="$(gh pr list \
+            --repo "${BIOCONDA_BASE_REPO}" \
+            --state open \
+            --search "vsearch-plus in:title author:${GITHUB_REPOSITORY_OWNER}" \
+            --json url \
+            --jq '.[0].url')"
+
+          if [[ -n "$existing_package_pr" && "$existing_package_pr" != "null" ]]; then
+            echo "Another open Bioconda PR for vsearch-plus already exists: $existing_package_pr"
+            exit 0
+          fi
+
           cat > bioconda-pr.md <<EOF
           ## Summary
           - update \`vsearch-plus\` to \`${{ steps.meta.outputs.tag }}\`
