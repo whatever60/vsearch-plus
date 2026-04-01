@@ -1,0 +1,178 @@
+name: Release and sync Bioconda
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release and sync, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-and-sync:
+    runs-on: ubuntu-latest
+    env:
+      BIOCONDA_BASE_REPO: bioconda/bioconda-recipes
+      BIOCONDA_BRANCH_PREFIX: update-vsearch-plus-
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag, version, and recipe branch
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="${{ github.event.inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ ! "$tag" =~ ^v[0-9] ]]; then
+            echo "Expected a v-prefixed tag, got $tag" >&2
+            exit 1
+          fi
+
+          version="${tag#v}"
+          branch="${BIOCONDA_BRANCH_PREFIX}${tag}"
+          archive_url="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${tag}.tar.gz"
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "archive_url=$archive_url" >> "$GITHUB_OUTPUT"
+
+      - name: Install smoke test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghostscript groff libbz2-dev openjdk-17-jdk wget zlib1g-dev
+
+      - name: Smoke test current source tree
+        run: |
+          ./scripts/build_cpp.sh
+          ./build/cpp/bin/vsearch --help >/dev/null
+          ./scripts/rdp-classifier --help >/dev/null
+
+      - name: Create GitHub release if needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "${{ steps.meta.outputs.tag }}" >/dev/null 2>&1; then
+            gh release create "${{ steps.meta.outputs.tag }}" \
+              --title "${{ steps.meta.outputs.tag }}" \
+              --generate-notes
+          fi
+
+      - name: Download source archive and compute sha256
+        id: archive
+        run: |
+          wget -O vsearch-plus.tar.gz "${{ steps.meta.outputs.archive_url }}"
+          sha256="$(sha256sum vsearch-plus.tar.gz | awk '{print $1}')"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Clone bioconda fork
+        env:
+          BIOCONDA_RECIPE_PAT: ${{ secrets.BIOCONDA_RECIPE_PAT }}
+        run: |
+          if [[ -z "${BIOCONDA_RECIPE_PAT}" ]]; then
+            echo "::error::Missing secret BIOCONDA_RECIPE_PAT"
+            echo "::error::Create a fine-grained PAT with Contents: Read and write and Pull requests: Read and write on ${GITHUB_REPOSITORY_OWNER}/bioconda-recipes."
+            exit 1
+          fi
+
+          git clone "https://x-access-token:${BIOCONDA_RECIPE_PAT}@github.com/${GITHUB_REPOSITORY_OWNER}/bioconda-recipes.git" bioconda-recipes
+
+      - name: Update bioconda recipe branch
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA256: ${{ steps.archive.outputs.sha256 }}
+          BRANCH: ${{ steps.meta.outputs.branch }}
+        run: |
+          cd bioconda-recipes
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git checkout "$BRANCH"
+            git pull --ff-only origin "$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
+
+          mkdir -p recipes/vsearch-plus
+          cp "${GITHUB_WORKSPACE}/conda/recipes/vsearch-plus/build.sh" recipes/vsearch-plus/build.sh
+          cp "${GITHUB_WORKSPACE}/conda/recipes/vsearch-plus/meta.yaml" recipes/vsearch-plus/meta.yaml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("recipes/vsearch-plus/meta.yaml")
+          text = path.read_text()
+          text = re.sub(r'\{\% set version = ".*?" \%\}', '{% set version = "' + os.environ["VERSION"] + '" %}', text, count=1)
+          text = re.sub(r'(?m)^  sha256: .+$', '  sha256: ' + os.environ["SHA256"], text, count=1)
+          path.write_text(text)
+          PY
+
+          chmod +x recipes/vsearch-plus/build.sh
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recipes/vsearch-plus
+
+          if git diff --cached --quiet; then
+            echo "No recipe changes to commit."
+          else
+            git commit -m "Update vsearch-plus recipe to ${{ steps.meta.outputs.tag }}"
+          fi
+
+          git push -u origin "$BRANCH"
+
+      - name: Create or reuse Bioconda pull request
+        env:
+          GH_TOKEN: ${{ secrets.BIOCONDA_RECIPE_PAT }}
+          BRANCH: ${{ steps.meta.outputs.branch }}
+        run: |
+          existing_pr="$(gh pr list \
+            --repo "${BIOCONDA_BASE_REPO}" \
+            --base master \
+            --head "${GITHUB_REPOSITORY_OWNER}:${BRANCH}" \
+            --state open \
+            --json url \
+            --jq '.[0].url')"
+
+          if [[ -n "$existing_pr" && "$existing_pr" != "null" ]]; then
+            echo "Bioconda PR already open: $existing_pr"
+            exit 0
+          fi
+
+          cat > bioconda-pr.md <<EOF
+          ## Summary
+          - update \`vsearch-plus\` to \`${{ steps.meta.outputs.tag }}\`
+          - install the public \`vsearch-plus\` and \`rdp-classifier\` commands
+          - keep the Python RDP downloader helper internal under \`share/vsearch-plus/scripts/\`
+
+          ## Notes
+          - \`rdp-classifier\` auto-initializes the RDP assets at runtime on first real use
+          - the recipe checksum was generated from ${{ steps.meta.outputs.archive_url }}
+
+          ## Validation
+          - GitHub Actions smoke tests in \`${{ github.repository }}\`
+            - \`./scripts/build_cpp.sh\`
+            - \`./build/cpp/bin/vsearch --help\`
+            - \`./scripts/rdp-classifier --help\`
+          EOF
+
+          gh pr create \
+            --repo "${BIOCONDA_BASE_REPO}" \
+            --base master \
+            --head "${GITHUB_REPOSITORY_OWNER}:${BRANCH}" \
+            --draft \
+            --title "[codex] Update vsearch-plus to ${{ steps.meta.outputs.tag }}" \
+            --body-file bioconda-pr.md

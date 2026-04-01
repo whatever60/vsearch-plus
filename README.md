@@ -1,4 +1,4 @@
-[![Build and test](https://github.com/torognes/vsearch/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/torognes/vsearch/actions/workflows/build-and-test.yml)
+[![Build and test](https://github.com/whatever60/vsearch-plus/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/whatever60/vsearch-plus/actions/workflows/build-and-test.yml)
 
 # vsearch-plus
 

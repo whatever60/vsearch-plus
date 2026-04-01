@@ -2,9 +2,10 @@ name: Build and test
 
 on:
   push:
-    branches: [ "master", "dev" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master", "dev" ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -18,17 +19,16 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y ghostscript groff libbz2-dev zlib1g-dev
-
-    - name: Configure
-      run: |
-        ./autogen.sh
-        ./configure CFLAGS="-O2" CXXFLAGS="-O2"
+        sudo apt-get install -y ghostscript groff libbz2-dev openjdk-17-jdk zlib1g-dev
 
     - name: Build
       run: |
-        JOBS=$(nproc 2>/dev/null || echo 1)
-        make ARFLAGS="cr" -j$JOBS
+        ./scripts/build_cpp.sh
+
+    - name: Smoke test public entrypoints
+      run: |
+        ./build/cpp/bin/vsearch --help >/dev/null
+        ./scripts/rdp-classifier --help >/dev/null
 
     - name: Install tests
       run: |
@@ -36,6 +36,6 @@ jobs:
 
     - name: Run tests
       run: |
-        export PATH=$PWD/bin:$PATH
+        export PATH=$PWD/build/cpp/bin:$PATH
         cd vsearch-tests
         bash ./run_all_tests.sh
